@@ -217,6 +217,24 @@ reelforge render 브리프.yaml --burn
 
 ---
 
+## 웹 편집대
+
+YAML을 직접 안 만지고 브라우저에서 브리프를 채우고, 자동으로 잘린 컷을 눈으로 확인하고 싶을 때 씁니다. `web/editor.html` 이 그 페이지입니다.
+
+**기획 브리프 탭** — 훅·대본·자막 스타일·컷 강도를 폼으로 채우면 YAML이 실시간으로 만들어집니다. 자막 위치는 9:16 프레임 미리보기에 그대로 비치고, 인스타 UI에 가리는 영역이 빗금으로 표시됩니다. `brief.json` 으로 받으면 CLI가 그대로 읽습니다(`reelforge build 브리프.json`).
+
+**컷 검토 탭** — `out/<프로젝트>/plan.json` 을 끌어다 놓으면 원본 타임라인 위에 잘려나간 구간이 빨갛게 뜹니다. 과하게 잘린 곳을 눌러 **되살리면 뒤따르는 자막 시각이 자동으로 밀립니다.** 자막 글자와 타이밍도 그 자리에서 고칠 수 있습니다.
+
+고친 `plan.json` 을 받아서 캡컷 프로젝트를 다시 만듭니다.
+
+```bash
+reelforge export plan.json
+```
+
+브리프를 페이지에 저장해두면 다른 기기에서 열어도 남아 있고, Claude가 그 브리프를 그대로 읽어 `build` 를 돌릴 수 있습니다.
+
+---
+
 ## 명령어
 
 | 명령 | 하는 일 |
@@ -225,6 +243,7 @@ reelforge render 브리프.yaml --burn
 | `reelforge doctor` | ffmpeg / whisper / 캡컷 경로 점검 |
 | `reelforge calibrate` | 설치된 캡컷에서 스키마 학습 |
 | `reelforge build 브리프.yaml` | 전체 파이프라인 → 캡컷 프로젝트 |
+| `reelforge export plan.json` | 손본 plan.json → 캡컷 프로젝트 다시 만들기 |
 | `reelforge render 브리프.yaml` | ffmpeg 미리보기 mp4 |
 | `reelforge voices` | TTS 공급자 / 추천 목소리 |
 
@@ -296,6 +315,7 @@ reelforge/
     srt.py, render.py    우회로
   pipeline.py            전체 조립
   cli.py
+web/editor.html          브리프 작성 + 컷 검토 웹 편집대
 ```
 
 가운데 있는 `EditPlan` 이 핵심입니다. 편집 결정이 전부 여기 모이고, 캡컷·SRT·ffmpeg 는 그걸 각자 형식으로 옮기기만 합니다. 새 출력 형식(프리미어 XML 등)을 붙이려면 exporter 하나만 쓰면 됩니다.

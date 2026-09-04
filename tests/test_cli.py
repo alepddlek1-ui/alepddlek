@@ -43,3 +43,27 @@ def test_build_defaults():
 def test_a_command_is_required():
     with pytest.raises(SystemExit):
         build_parser().parse_args([])
+
+
+def test_export_rebuilds_a_draft_from_an_edited_plan(tmp_path, capsys):
+    """웹 편집기에서 컷을 되살리고 자막을 고친 뒤 다시 캡컷으로 보내는 경로."""
+    from reelforge.models import Caption, Clip, EditPlan
+
+    video = tmp_path / "take1.mp4"
+    video.write_bytes(b"fake")
+    plan = EditPlan(
+        project="손본버전",
+        clips=[Clip(str(video), 0.0, 2.0, 0.0)],
+        captions=[Caption("고친 자막", 0.0, 1.5, "reels_bold")],
+    )
+    plan_path = plan.save(tmp_path / "plan.json")
+
+    assert main([
+        "export", str(plan_path),
+        "--projects-dir", str(tmp_path / "Projects"),
+        "--no-template",
+    ]) == 0
+    draft = tmp_path / "Projects/손본버전/draft_content.json"
+    assert draft.exists()
+    assert "고친 자막" in draft.read_text(encoding="utf-8")
+    assert (tmp_path / "손본버전.srt").exists()

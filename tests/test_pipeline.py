@@ -151,3 +151,13 @@ def test_caption_position_from_the_brief_is_applied(fake_media, tmp_path):
     )
     plan = pipeline.build_plan(brief, tmp_path / "work")
     assert all(c.position == 0.4 for c in plan.captions)
+
+
+def test_removed_spans_remember_their_source(fake_media, brief, tmp_path):
+    """웹 편집기에서 컷을 되살리려면 어느 영상의 구간인지 알아야 한다."""
+    plan = pipeline.build_plan(brief, tmp_path / "work")
+    assert plan.removed
+    assert all(span.source.endswith("take1.mp4") for span in plan.removed)
+
+    again = type(plan).load(plan.save(tmp_path / "plan.json"))
+    assert again.removed[0].source == plan.removed[0].source

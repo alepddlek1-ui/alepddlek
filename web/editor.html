@@ -1,0 +1,1827 @@
+<title>리얼포지 편집대</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --paper:   #EFEFEA;
+    --surface: #F8F8F4;
+    --sunken:  #E3E5DC;
+    --ink:     #1B1F1D;
+    --ink-soft:#5C645E;
+    --ink-faint:#8A928B;
+    --line:    #D3D5CB;
+    --line-hard:#B8BCB0;
+    --splice:  #C4333F;
+    --splice-wash: rgba(196, 51, 63, 0.10);
+    --slate:   #4C6B7F;
+    --slate-wash: rgba(76, 107, 127, 0.12);
+    --signal:  #2C7757;
+    --amber:   #A96F14;
+    --shadow:  0 1px 2px rgba(27,31,29,.07), 0 8px 20px -12px rgba(27,31,29,.22);
+    --radius:  7px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:   #15181A;
+      --surface: #1E2225;
+      --sunken:  #0F1214;
+      --ink:     #E7EAE5;
+      --ink-soft:#9BA49E;
+      --ink-faint:#6E7873;
+      --line:    #2D3438;
+      --line-hard:#3E474C;
+      --splice:  #E2626D;
+      --splice-wash: rgba(226, 98, 109, 0.16);
+      --slate:   #7FA4BA;
+      --slate-wash: rgba(127, 164, 186, 0.16);
+      --signal:  #58B189;
+      --amber:   #D2A052;
+      --shadow:  0 1px 2px rgba(0,0,0,.4), 0 10px 24px -14px rgba(0,0,0,.7);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:   #15181A;
+    --surface: #1E2225;
+    --sunken:  #0F1214;
+    --ink:     #E7EAE5;
+    --ink-soft:#9BA49E;
+    --ink-faint:#6E7873;
+    --line:    #2D3438;
+    --line-hard:#3E474C;
+    --splice:  #E2626D;
+    --splice-wash: rgba(226, 98, 109, 0.16);
+    --slate:   #7FA4BA;
+    --slate-wash: rgba(127, 164, 186, 0.16);
+    --signal:  #58B189;
+    --amber:   #D2A052;
+    --shadow:  0 1px 2px rgba(0,0,0,.4), 0 10px 24px -14px rgba(0,0,0,.7);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans KR", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+                 "Malgun Gothic", sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  /* ── 상단 바 ─────────────────────────────────────────── */
+  header {
+    display: flex; align-items: center; gap: 20px;
+    padding: 0 20px; height: 56px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 40;
+  }
+  .brand { display: flex; align-items: baseline; gap: 9px; }
+  .brand b { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+  .brand span {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .13em;
+    color: var(--ink-faint);
+  }
+  nav { display: flex; gap: 2px; margin-left: 6px; }
+  nav button {
+    font: inherit; font-size: 13px; font-weight: 500;
+    padding: 6px 13px; border-radius: 999px;
+    border: 1px solid transparent; background: none; color: var(--ink-soft);
+    cursor: pointer;
+  }
+  nav button:hover { color: var(--ink); background: var(--sunken); }
+  nav button[aria-selected="true"] {
+    background: var(--ink); color: var(--paper);
+  }
+  .spacer { flex: 1; }
+  .status {
+    font-size: 11.5px; color: var(--ink-faint);
+    display: flex; align-items: center; gap: 7px;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-faint); }
+  .dot.live { background: var(--signal); }
+
+  /* ── 레이아웃 ────────────────────────────────────────── */
+  .shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); align-items: start; }
+  @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } }
+
+  aside {
+    border-right: 1px solid var(--line);
+    padding: 20px 16px 40px;
+    min-height: calc(100vh - 56px);
+    position: sticky; top: 56px;
+  }
+  @media (max-width: 900px) {
+    aside { position: static; min-height: 0; border-right: none; border-bottom: 1px solid var(--line); }
+  }
+  .rail-label {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .12em;
+    color: var(--ink-faint); margin-bottom: 10px;
+  }
+  .saved-list { display: flex; flex-direction: column; gap: 3px; margin-bottom: 18px; }
+  .saved-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 9px; border-radius: var(--radius);
+    cursor: pointer; border: 1px solid transparent;
+    text-align: left; font: inherit; color: var(--ink); background: none; width: 100%;
+  }
+  .saved-item:hover { background: var(--sunken); }
+  .saved-item.on { border-color: var(--line-hard); background: var(--sunken); }
+  .saved-item .nm { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .saved-item .tm { font-size: 10.5px; color: var(--ink-faint); }
+  .rail-empty { font-size: 12px; color: var(--ink-faint); line-height: 1.6; }
+
+  main { padding: 26px 28px 80px; max-width: 1080px; }
+  @media (max-width: 620px) { main { padding: 20px 16px 60px; } }
+
+  /* ── 섹션 / 필드 ─────────────────────────────────────── */
+  section { margin-bottom: 30px; }
+  .sec-head {
+    display: flex; align-items: baseline; gap: 10px;
+    padding-bottom: 8px; margin-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sec-head h2 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -.005em; }
+  .sec-head p { margin: 0; font-size: 12px; color: var(--ink-faint); }
+
+  .grid { display: grid; gap: 14px 18px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .field.wide { grid-column: 1 / -1; }
+  label { font-size: 12px; font-weight: 500; color: var(--ink-soft); }
+  label .hint { font-weight: 400; color: var(--ink-faint); }
+
+  input[type="text"], input[type="number"], textarea, select {
+    font: inherit; font-size: 13px;
+    padding: 8px 10px;
+    color: var(--ink); background: var(--surface);
+    border: 1px solid var(--line-hard); border-radius: var(--radius);
+    width: 100%;
+  }
+  textarea { resize: vertical; line-height: 1.6; }
+  input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible {
+    outline: 2px solid var(--slate); outline-offset: 1px;
+  }
+  input[type="range"] { width: 100%; accent-color: var(--splice); }
+
+  .seg { display: inline-flex; border: 1px solid var(--line-hard); border-radius: var(--radius); overflow: hidden; }
+  .seg button {
+    font: inherit; font-size: 12.5px; padding: 7px 12px;
+    background: var(--surface); color: var(--ink-soft);
+    border: none; border-right: 1px solid var(--line-hard); cursor: pointer;
+  }
+  .seg button:last-child { border-right: none; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+  .slider-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; }
+  .slider-row output { font-size: 12px; min-width: 52px; text-align: right; color: var(--ink-soft); }
+
+  .switch { display: flex; align-items: center; gap: 9px; cursor: pointer; user-select: none; }
+  .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .track {
+    width: 34px; height: 19px; border-radius: 999px;
+    background: var(--line-hard); position: relative; transition: background .14s;
+    flex: none;
+  }
+  .track::after {
+    content: ""; position: absolute; top: 2px; left: 2px;
+    width: 15px; height: 15px; border-radius: 50%;
+    background: var(--surface); transition: transform .14s;
+  }
+  .switch input:checked + .track { background: var(--signal); }
+  .switch input:checked + .track::after { transform: translateX(15px); }
+  .switch input:focus-visible + .track { outline: 2px solid var(--slate); outline-offset: 2px; }
+
+  /* 목록형 입력 (촬영 파일 · 키워드 · 보호 구간) */
+  .rows { display: flex; flex-direction: column; gap: 6px; }
+  .row-item { display: flex; gap: 6px; align-items: center; }
+  .icon-btn {
+    font: inherit; font-size: 15px; line-height: 1;
+    width: 30px; height: 32px; flex: none;
+    background: var(--surface); color: var(--ink-soft);
+    border: 1px solid var(--line-hard); border-radius: var(--radius); cursor: pointer;
+  }
+  .icon-btn:hover { color: var(--splice); border-color: var(--splice); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 6px 4px 10px; border-radius: 999px;
+    background: var(--slate-wash); color: var(--slate);
+    font-size: 12px; font-weight: 500;
+  }
+  .chip button {
+    font: inherit; border: none; background: none; cursor: pointer;
+    color: inherit; opacity: .6; padding: 0 2px; line-height: 1;
+  }
+  .chip button:hover { opacity: 1; }
+
+  .btn {
+    font: inherit; font-size: 13px; font-weight: 500;
+    padding: 8px 14px; border-radius: var(--radius); cursor: pointer;
+    border: 1px solid var(--line-hard); background: var(--surface); color: var(--ink);
+  }
+  .btn:hover { border-color: var(--ink-faint); }
+  .btn.primary { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .btn.primary:hover { opacity: .88; }
+  .btn.ghost { border-color: transparent; background: none; color: var(--ink-soft); }
+  .btn.ghost:hover { background: var(--sunken); color: var(--ink); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+  /* ── 자막 위치 미리보기 (9:16 프레임) ─────────────────── */
+  .frame-preview { display: flex; gap: 16px; align-items: flex-start; }
+  .frame {
+    width: 84px; height: 149px; flex: none;
+    border: 1px solid var(--line-hard); border-radius: 5px;
+    background: var(--sunken); position: relative; overflow: hidden;
+  }
+  .frame .safe {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 17%;
+    background: repeating-linear-gradient(
+      -45deg, transparent 0 3px, var(--line) 3px 4px);
+  }
+  .frame .cap {
+    position: absolute; left: 6%; right: 6%;
+    transform: translateY(-50%);
+    font-size: 8px; font-weight: 700; text-align: center;
+    color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000, 0 1px 2px #000;
+    line-height: 1.25;
+  }
+  .frame .band {
+    position: absolute; left: 0; right: 0; height: 1px; background: var(--splice); opacity: .5;
+  }
+
+  /* ── YAML 미리보기 ───────────────────────────────────── */
+  .preview {
+    border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--sunken); overflow: hidden;
+  }
+  .preview-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-bottom: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .preview-head .t { font-size: 12px; font-weight: 600; }
+  .preview-head .f { font-size: 11px; color: var(--ink-faint); }
+  pre {
+    margin: 0; padding: 14px 16px; max-height: 380px; overflow: auto;
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-size: 12px; line-height: 1.65; color: var(--ink-soft);
+    white-space: pre; tab-size: 2;
+  }
+  .cli {
+    margin-top: 10px; padding: 11px 14px;
+    border: 1px dashed var(--line-hard); border-radius: var(--radius);
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-size: 12px; color: var(--ink-soft);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .cli b { color: var(--ink); font-weight: 500; }
+
+  /* ── 컷 검토 탭 ──────────────────────────────────────── */
+  .stats { display: flex; flex-wrap: wrap; gap: 26px; margin-bottom: 20px; }
+  .stat .k {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .11em;
+    color: var(--ink-faint);
+  }
+  .stat .v {
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-size: 21px; font-weight: 500; font-variant-numeric: tabular-nums;
+    letter-spacing: -.02em;
+  }
+  .stat .v small { font-size: 12px; color: var(--ink-faint); font-weight: 400; }
+  .stat.cut .v { color: var(--splice); }
+
+  .track-strip { margin-bottom: 8px; }
+  .track-strip .nm {
+    font-size: 11.5px; color: var(--ink-faint); margin-bottom: 5px;
+    display: flex; justify-content: space-between;
+  }
+  .strip {
+    position: relative; height: 34px; width: 100%; opacity: .88;
+    background: var(--slate); border-radius: 4px; overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .strip .seg-cut {
+    position: absolute; top: 0; bottom: 0;
+    background: var(--splice); opacity: .82; cursor: pointer;
+    border-left: 1px solid var(--paper); border-right: 1px solid var(--paper);
+  }
+  .strip .seg-cut:hover { opacity: 1; }
+  .strip .seg-cut.off {
+    background: repeating-linear-gradient(-45deg,
+      var(--line-hard) 0 4px, transparent 4px 8px);
+    opacity: .8;
+  }
+  .ruler {
+    display: flex; justify-content: space-between;
+    font-family: "IBM Plex Mono", monospace; font-size: 10px;
+    color: var(--ink-faint); margin-top: 4px;
+  }
+  .legend { display: flex; gap: 14px; font-size: 11.5px; color: var(--ink-faint); margin-top: 10px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+  th {
+    text-align: left; font-size: 10.5px; font-weight: 500;
+    text-transform: uppercase; letter-spacing: .1em; color: var(--ink-faint);
+    padding: 9px 12px; border-bottom: 1px solid var(--line);
+    background: var(--surface); white-space: nowrap;
+  }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr.restored td { opacity: .48; }
+  td.tc {
+    font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+    font-size: 12px; white-space: nowrap; color: var(--ink-soft);
+  }
+  td.dur { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+           font-size: 12px; color: var(--splice); white-space: nowrap; }
+
+  .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 500; white-space: nowrap;
+  }
+  .tag.silence { background: var(--slate-wash);  color: var(--slate); }
+  .tag.filler  { background: var(--splice-wash); color: var(--splice); }
+  .tag.stutter { background: rgba(169,111,20,.14); color: var(--amber); }
+  .tag.retake  { background: rgba(44,119,87,.14); color: var(--signal); }
+
+  .cap-text {
+    font: inherit; font-size: 13px; width: 100%; min-height: 34px;
+    padding: 6px 8px; border: 1px solid transparent; border-radius: 5px;
+    background: none; color: var(--ink); resize: vertical; line-height: 1.4;
+  }
+  .cap-text:hover { border-color: var(--line); }
+  .cap-text:focus { border-color: var(--line-hard); background: var(--surface); }
+  .tc-input {
+    font-family: "IBM Plex Mono", monospace; font-size: 12px;
+    width: 74px; padding: 5px 6px; text-align: right;
+    border: 1px solid transparent; border-radius: 5px;
+    background: none; color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+  }
+  .tc-input:hover { border-color: var(--line); }
+  .tc-input:focus { border-color: var(--line-hard); background: var(--surface); color: var(--ink); }
+
+  .dropzone {
+    border: 1.5px dashed var(--line-hard); border-radius: 10px;
+    padding: 30px 24px; text-align: center; color: var(--ink-soft);
+    background: var(--surface);
+  }
+  .dropzone.over { border-color: var(--splice); background: var(--splice-wash); }
+  .dropzone h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; color: var(--ink); }
+  .dropzone p { margin: 0 0 14px; font-size: 12.5px; }
+
+  .banner {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 10px 13px; border-radius: var(--radius); margin-bottom: 18px;
+    font-size: 12.5px; line-height: 1.55;
+    background: var(--slate-wash); color: var(--ink-soft);
+    border-left: 2px solid var(--slate);
+  }
+  .banner.warn { background: var(--splice-wash); border-left-color: var(--splice); }
+  .banner b { color: var(--ink); font-weight: 600; }
+
+  .toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(8px);
+    background: var(--ink); color: var(--paper);
+    padding: 9px 16px; border-radius: 999px; font-size: 13px;
+    box-shadow: var(--shadow); opacity: 0; pointer-events: none;
+    transition: opacity .16s, transform .16s; z-index: 90;
+  }
+  .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .foot { margin-top: 34px; padding-top: 18px; border-top: 1px solid var(--line);
+          font-size: 12px; color: var(--ink-faint); line-height: 1.7; }
+  .foot code { font-family: "IBM Plex Mono", monospace; color: var(--ink-soft); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<header>
+  <div class="brand"><b>리얼포지 편집대</b><span>reelforge</span></div>
+  <nav role="tablist">
+    <button role="tab" id="tab-brief" aria-selected="true" aria-controls="panel-brief">기획 브리프</button>
+    <button role="tab" id="tab-plan" aria-selected="false" aria-controls="panel-plan">컷 검토</button>
+  </nav>
+  <div class="spacer"></div>
+  <div class="status"><span class="dot" id="sync-dot"></span><span id="sync-text">로컬 보관</span></div>
+</header>
+
+<div class="shell">
+  <aside>
+    <div class="rail-label">저장된 브리프</div>
+    <div class="saved-list" id="saved-list">
+      <div class="rail-empty">브리프를 채우고 <b>이 페이지에 저장</b>을 누르면 여기 쌓입니다.</div>
+    </div>
+    <button class="btn ghost" id="new-brief" style="width:100%">＋ 새 브리프</button>
+    <div class="foot" style="margin-top:22px;padding-top:14px">
+      <span id="rail-note">이 페이지에 저장하면 어느 기기에서 열어도 남습니다.</span>
+    </div>
+  </aside>
+
+  <main>
+    <!-- ══════════ 기획 브리프 ══════════ -->
+    <div id="panel-brief" role="tabpanel" aria-labelledby="tab-brief">
+
+      <section>
+        <div class="sec-head"><h2>기본</h2><p>어떤 영상을, 어떤 규격으로</p></div>
+        <div class="grid">
+          <div class="field">
+            <label for="f-project">프로젝트 이름</label>
+            <input type="text" id="f-project" data-k="project">
+          </div>
+          <div class="field">
+            <label for="f-fps">프레임 레이트 <span class="hint">fps</span></label>
+            <input type="number" id="f-fps" data-k="fps" min="15" max="60" step="1">
+          </div>
+          <div class="field wide">
+            <label>화면 비율</label>
+            <div class="seg" id="f-aspect">
+              <button type="button" data-v="9:16">9:16 릴스</button>
+              <button type="button" data-v="4:5">4:5 피드</button>
+              <button type="button" data-v="1:1">1:1</button>
+              <button type="button" data-v="16:9">16:9</button>
+            </div>
+          </div>
+          <div class="field wide">
+            <label>촬영 파일 <span class="hint">브리프 파일 기준 상대경로. 여러 개면 순서대로 이어붙습니다</span></label>
+            <div class="rows" id="f-footage"></div>
+            <div><button class="btn ghost" id="add-footage" type="button">＋ 파일 추가</button></div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head"><h2>기획</h2><p>훅은 0~2초에 크게 박히는 첫 문장입니다</p></div>
+        <div class="grid">
+          <div class="field wide">
+            <label for="f-hook">훅 <span class="hint">여기서 스크롤이 멈춰야 합니다</span></label>
+            <input type="text" id="f-hook" data-k="hook">
+          </div>
+          <div class="field wide">
+            <label for="f-idea">기획 의도 <span class="hint">편집에 직접 쓰이진 않지만 기록으로 남습니다</span></label>
+            <textarea id="f-idea" data-k="idea" rows="4"></textarea>
+          </div>
+          <div class="field wide">
+            <label for="f-cta">마무리 문구 <span class="hint">마지막 1.6초에 얹힙니다</span></label>
+            <input type="text" id="f-cta" data-k="cta">
+          </div>
+          <div class="field wide">
+            <label for="f-keyword-input">강조 키워드 <span class="hint">자막에서 다른 색으로 뜹니다</span></label>
+            <div class="chips" id="f-keywords"></div>
+            <input type="text" id="f-keyword-input" placeholder="입력 후 Enter" style="margin-top:6px">
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head"><h2>대본</h2><p id="script-count">한 줄 = 한 호흡. AI 나레이션을 켜면 이대로 읽습니다</p></div>
+        <textarea id="f-script" data-k="script" rows="6"></textarea>
+      </section>
+
+      <section>
+        <div class="sec-head"><h2>자막</h2><p>릴스는 한 줄 12~16자가 안전합니다</p></div>
+        <div class="frame-preview">
+          <div class="frame" id="cap-frame">
+            <div class="safe"></div>
+            <div class="band" id="cap-band"></div>
+            <div class="cap" id="cap-sample">이거 모르면<br>계속 손해봅니다</div>
+          </div>
+          <div class="grid" style="flex:1">
+            <div class="field">
+              <label for="f-cap-source">자막 원천</label>
+              <select id="f-cap-source" data-k="captions.source">
+                <option value="transcript">내가 말한 그대로</option>
+                <option value="script">대본 그대로</option>
+                <option value="none">자막 없음</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="f-cap-style">스타일</label>
+              <select id="f-cap-style" data-k="captions.style">
+                <option value="reels_bold">reels_bold · 흰 글씨 + 검정 외곽선</option>
+                <option value="pop_yellow">pop_yellow · 노란 형광</option>
+                <option value="minimal">minimal · 얇고 조용하게</option>
+                <option value="caption_box">caption_box · 검정 박스</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="f-cap-chars">한 줄 글자 수</label>
+              <div class="slider-row">
+                <input type="range" id="f-cap-chars" data-k="captions.max_chars" min="8" max="24" step="1">
+                <output id="o-cap-chars"></output>
+              </div>
+            </div>
+            <div class="field">
+              <label for="f-cap-lines">최대 줄 수</label>
+              <div class="slider-row">
+                <input type="range" id="f-cap-lines" data-k="captions.max_lines" min="1" max="3" step="1">
+                <output id="o-cap-lines"></output>
+              </div>
+            </div>
+            <div class="field">
+              <label for="f-cap-pos">세로 위치 <span class="hint">아래 빗금은 인스타 UI 영역</span></label>
+              <div class="slider-row">
+                <input type="range" id="f-cap-pos" data-k="captions.position" min="0.1" max="0.95" step="0.01">
+                <output id="o-cap-pos"></output>
+              </div>
+            </div>
+            <div class="field">
+              <label for="f-cap-min">최소 노출 <span class="hint">초</span></label>
+              <div class="slider-row">
+                <input type="range" id="f-cap-min" data-k="captions.min_duration" min="0.4" max="1.6" step="0.05">
+                <output id="o-cap-min"></output>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head"><h2>AI 오디오</h2><p>대본을 읽어 음성으로 만듭니다</p></div>
+        <label class="switch" style="margin-bottom:14px">
+          <input type="checkbox" id="f-narr-on" data-k="narration.enabled">
+          <span class="track"></span>
+          <span>AI 나레이션 사용</span>
+        </label>
+        <div class="grid" id="narr-fields">
+          <div class="field">
+            <label for="f-narr-provider">공급자</label>
+            <select id="f-narr-provider" data-k="narration.provider">
+              <option value="edge">edge · 무료, 키 불필요</option>
+              <option value="elevenlabs">elevenlabs · 가장 자연스러움</option>
+              <option value="openai">openai · 차분한 억양</option>
+              <option value="fish">fish · 목소리 클로닝</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="f-narr-voice">목소리</label>
+            <input type="text" id="f-narr-voice" data-k="narration.voice" list="voice-list">
+            <datalist id="voice-list">
+              <option value="ko-KR-SunHiNeural">여성 · 밝고 또렷함</option>
+              <option value="ko-KR-InJoonNeural">남성 · 차분함</option>
+              <option value="ko-KR-HyunsuMultilingualNeural">남성 · 한영 혼용</option>
+            </datalist>
+          </div>
+          <div class="field">
+            <label for="f-narr-mode">원본 소리 처리</label>
+            <select id="f-narr-mode" data-k="narration.mode">
+              <option value="mix">mix · 원본 깔고 위에 얹기</option>
+              <option value="replace">replace · 원본 음소거</option>
+              <option value="off">off · 나레이션 끔</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="f-narr-align">배치</label>
+            <select id="f-narr-align" data-k="narration.align">
+              <option value="sequential">순서대로 이어서</option>
+              <option value="clips">각 컷 시작에 맞춤</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="f-narr-speed">말 속도</label>
+            <div class="slider-row">
+              <input type="range" id="f-narr-speed" data-k="narration.speed" min="0.8" max="1.4" step="0.05">
+              <output id="o-narr-speed"></output>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head"><h2>컷 강도</h2><p>너무 뚝뚝 끊기면 정적 허용치를 키우세요</p></div>
+        <div class="btn-row" style="margin-bottom:16px">
+          <button class="btn" type="button" data-preset="tight">촘촘하게</button>
+          <button class="btn" type="button" data-preset="default">기본</button>
+          <button class="btn" type="button" data-preset="loose">여유 있게</button>
+        </div>
+        <div class="grid">
+          <div class="field">
+            <label for="f-cut-pause">정적 허용치 <span class="hint">초 · 이보다 길면 줄입니다</span></label>
+            <div class="slider-row">
+              <input type="range" id="f-cut-pause" data-k="cut.max_pause" min="0.2" max="1.2" step="0.05">
+              <output id="o-cut-pause"></output>
+            </div>
+          </div>
+          <div class="field">
+            <label for="f-cut-dead">발화 중 정적 <span class="hint">초 · 말하다 멈추면 컷</span></label>
+            <div class="slider-row">
+              <input type="range" id="f-cut-dead" data-k="filler.dead_air" min="0.3" max="1.2" step="0.05">
+              <output id="o-cut-dead"></output>
+            </div>
+          </div>
+          <div class="field">
+            <label for="f-cut-soft">머뭇거림 기준 <span class="hint">초 · '그…' 를 필러로 볼 여유</span></label>
+            <div class="slider-row">
+              <input type="range" id="f-cut-soft" data-k="filler.soft_pause" min="0.15" max="0.6" step="0.01">
+              <output id="o-cut-soft"></output>
+            </div>
+          </div>
+          <div class="field">
+            <label for="f-cut-min">최소 조각 <span class="hint">초 · 이보다 짧게 남으면 버림</span></label>
+            <div class="slider-row">
+              <input type="range" id="f-cut-min" data-k="cut.min_clip" min="0.15" max="0.8" step="0.05">
+              <output id="o-cut-min"></output>
+            </div>
+          </div>
+          <div class="field">
+            <label class="switch">
+              <input type="checkbox" id="f-cut-retake" data-k="cut.drop_retakes">
+              <span class="track"></span>
+              <span>재촬영본 자동 제거 <span class="hint">같은 말 다시 하면 앞 테이크 버림</span></span>
+            </label>
+          </div>
+          <div class="field">
+            <label class="switch">
+              <input type="checkbox" id="f-cut-trim" data-k="cut.trim_head_tail">
+              <span class="track"></span>
+              <span>앞뒤 여백 정리</span>
+            </label>
+          </div>
+          <div class="field wide">
+            <label>보호 구간 <span class="hint">원본 기준 초. 이 구간은 절대 자르지 않습니다</span></label>
+            <div class="rows" id="f-protect"></div>
+            <div><button class="btn ghost" id="add-protect" type="button">＋ 구간 추가</button></div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head"><h2>그 밖에</h2><p>음성 인식 정확도와 배경음악</p></div>
+        <div class="grid">
+          <div class="field">
+            <label for="f-stt">음성 인식 모델 <span class="hint">클수록 정확·느림</span></label>
+            <select id="f-stt" data-k="stt_model">
+              <option value="tiny">tiny · 가장 빠름</option>
+              <option value="base">base</option>
+              <option value="small">small · 시안 돌릴 때</option>
+              <option value="medium">medium · 기본</option>
+              <option value="large-v3">large-v3 · 최종본</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="f-music">배경음악 경로 <span class="hint">비워도 됩니다</span></label>
+            <input type="text" id="f-music" data-k="music" placeholder="assets/bgm.mp3">
+          </div>
+          <div class="field">
+            <label for="f-music-gain">배경음악 크기 <span class="hint">dB</span></label>
+            <div class="slider-row">
+              <input type="range" id="f-music-gain" data-k="music_gain_db" min="-32" max="-6" step="1">
+              <output id="o-music-gain"></output>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head"><h2>결과</h2><p>이 브리프를 파일로 받아 CLI에 넘기면 됩니다</p></div>
+        <div class="btn-row" style="margin-bottom:14px">
+          <button class="btn primary" id="save-db" type="button">이 페이지에 저장</button>
+          <button class="btn" id="copy-yaml" type="button">YAML 복사</button>
+          <button class="btn" id="dl-json" type="button">brief.json 받기</button>
+          <button class="btn ghost" id="dl-yaml" type="button">brief.yaml 받기</button>
+        </div>
+        <div class="preview">
+          <div class="preview-head">
+            <span class="t">brief.yaml</span>
+            <span class="f" id="yaml-size"></span>
+          </div>
+          <pre id="yaml-out"></pre>
+        </div>
+        <div class="cli">
+          <b id="cli-cmd">reelforge build 브리프.yaml</b>
+          <button class="btn ghost" id="copy-cli" type="button" style="padding:3px 9px;font-size:12px">복사</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- ══════════ 컷 검토 ══════════ -->
+    <div id="panel-plan" role="tabpanel" aria-labelledby="tab-plan" hidden>
+      <div class="banner" id="plan-banner">
+        <span><b id="plan-title">예시 데이터입니다.</b>
+        <span id="plan-sub">아래에서 직접 만든 <code>plan.json</code>을 올리면 그 내용으로 바뀝니다.</span></span>
+      </div>
+
+      <div class="stats" id="plan-stats"></div>
+
+      <section>
+        <div class="sec-head">
+          <h2>타임라인</h2>
+          <p>빨간 구간이 잘려나간 부분입니다. 눌러서 되살리세요</p>
+        </div>
+        <div id="strips"></div>
+        <div class="legend">
+          <span><i style="background:var(--slate)"></i>남는 구간</span>
+          <span><i style="background:var(--splice)"></i>잘려나감</span>
+          <span><i style="background:var(--line-hard)"></i>되살림</span>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head">
+          <h2>잘라낸 구간</h2>
+          <p id="cut-count"></p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th style="width:120px">구간</th>
+              <th style="width:64px">길이</th>
+              <th style="width:88px">사유</th>
+              <th>근거</th>
+              <th style="width:80px">되살리기</th>
+            </tr></thead>
+            <tbody id="cut-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head">
+          <h2>자막</h2>
+          <p>글자를 눌러 바로 고칠 수 있습니다</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th style="width:82px">시작</th>
+              <th style="width:82px">끝</th>
+              <th>자막</th>
+              <th style="width:44px"></th>
+            </tr></thead>
+            <tbody id="cap-rows"></tbody>
+          </table>
+        </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn ghost" id="add-caption" type="button">＋ 자막 추가</button>
+        </div>
+      </section>
+
+      <section>
+        <div class="sec-head"><h2>내보내기</h2><p>고친 내용을 캡컷으로 되돌려 보냅니다</p></div>
+        <div class="dropzone" id="dropzone">
+          <h3>plan.json 올리기</h3>
+          <p><code>out/&lt;프로젝트&gt;/plan.json</code> 을 끌어다 놓거나 선택하세요</p>
+          <div class="btn-row" style="justify-content:center">
+            <button class="btn" id="pick-file" type="button">파일 선택</button>
+            <input type="file" id="file-input" accept=".json,application/json" hidden>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:16px">
+          <button class="btn primary" id="dl-plan" type="button">고친 plan.json 받기</button>
+          <button class="btn" id="copy-plan" type="button">plan.json 복사</button>
+          <button class="btn ghost" id="reset-cuts" type="button">되살린 컷 원복</button>
+        </div>
+        <div class="cli">
+          <b>reelforge export plan.json</b>
+          <button class="btn ghost" id="copy-cli2" type="button" style="padding:3px 9px;font-size:12px">복사</button>
+          <span>— 캡컷 프로젝트가 다시 만들어집니다</span>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ═══════════════════ 기본값 · 상태 ═══════════════════ */
+
+  const DEFAULT_BRIEF = {
+    project: "여름신상_릴스",
+    footage: ["raw/take1.mp4"],
+    aspect: "9:16",
+    fps: 30,
+    hook: "이거 모르면 계속 손해봅니다",
+    idea: "타깃: 20대 후반 직장인\n톤: 친구가 알려주듯 빠르게\n구조: 훅 → 문제 → 해결 → CTA",
+    cta: "프로필 링크에서 확인",
+    script: "아침마다 10분씩 날리고 있었어요.\n이거 하나 바꿨더니 3분이면 끝납니다.\n지금 프로필 링크에서 확인해보세요.",
+    keywords: ["무료배송", "3분"],
+    music: "",
+    music_gain_db: -18,
+    captions: {
+      source: "transcript", style: "reels_bold",
+      max_chars: 14, max_lines: 2,
+      min_duration: 0.7, max_duration: 3.0, position: 0.72,
+    },
+    narration: {
+      enabled: false, provider: "edge", voice: "ko-KR-SunHiNeural",
+      speed: 1.05, mode: "mix", align: "sequential", original_gain_db: -14,
+    },
+    cut: {
+      max_pause: 0.45, min_clip: 0.30,
+      trim_head_tail: true, drop_retakes: true,
+    },
+    filler: { dead_air: 0.55, soft_pause: 0.28 },
+    protect: [],
+    stt_model: "medium",
+    language: "ko",
+  };
+
+  const PRESETS = {
+    tight:   { cut: { max_pause: 0.28, min_clip: 0.25 }, filler: { dead_air: 0.40, soft_pause: 0.22 } },
+    default: { cut: { max_pause: 0.45, min_clip: 0.30 }, filler: { dead_air: 0.55, soft_pause: 0.28 } },
+    loose:   { cut: { max_pause: 0.75, min_clip: 0.40 }, filler: { dead_air: 0.85, soft_pause: 0.42 } },
+  };
+
+  // 컷 검토 탭이 빈 화면으로 열리지 않도록 하는 예시. 실제 파일을 올리면 대체됩니다.
+  const SAMPLE_PLAN = {
+    project: "예시_아침루틴",
+    width: 1080, height: 1920, fps: 30,
+    clips: [
+      { source: "raw/take1.mp4", source_start: 1.10, source_end: 4.62, timeline_start: 0.00, speed: 1 },
+      { source: "raw/take1.mp4", source_start: 6.05, source_end: 9.30, timeline_start: 3.52, speed: 1 },
+      { source: "raw/take1.mp4", source_start: 9.92, source_end: 14.40, timeline_start: 6.77, speed: 1 },
+    ],
+    captions: [
+      { text: "아침마다 10분씩\n날리고 있었어요", start: 0.10, end: 2.30, style: "reels_bold", emphasis: [], position: 0.72 },
+      { text: "이거 하나 바꿨더니", start: 2.40, end: 4.20, style: "reels_bold", emphasis: [], position: 0.72 },
+      { text: "3분이면 끝납니다", start: 4.30, end: 6.40, style: "reels_bold", emphasis: ["3분"], position: 0.72 },
+      { text: "지금 프로필 링크에서", start: 6.90, end: 9.10, style: "reels_bold", emphasis: [], position: 0.72 },
+    ],
+    narration: [],
+    music: null, music_gain_db: -18,
+    removed: [
+      { start: 0.00, end: 1.10, reason: "silence", detail: "take1.mp4: 앞뒤 여백 정리", source: "raw/take1.mp4" },
+      { start: 4.62, end: 6.05, reason: "dead_air", detail: "take1.mp4: 1.43s 정적", source: "raw/take1.mp4" },
+      { start: 9.30, end: 9.92, reason: "filler", detail: "take1.mp4: 필러 '음'", source: "raw/take1.mp4" },
+      { start: 14.40, end: 15.80, reason: "silence", detail: "take1.mp4: 앞뒤 여백 정리", source: "raw/take1.mp4" },
+    ],
+    meta: { original_duration: 15.8, cut_seconds: 4.55, sources: ["raw/take1.mp4"] },
+  };
+
+  let brief = clone(DEFAULT_BRIEF);
+  let plan = clone(SAMPLE_PLAN);
+  let planIsSample = true;
+  let originalClips = clone(SAMPLE_PLAN.clips);      // 되살리기 계산의 기준점
+  let capAnchors = [];                               // 자막을 '원본 시각'에 못박아 둔 것
+  let restored = new Set();                          // 되살린 컷의 인덱스
+  let db = null, downloads = null;
+  let currentDocId = null;
+
+  const $ = (id) => document.getElementById(id);
+  function clone(v) { return JSON.parse(JSON.stringify(v)); }
+
+  /* ═══════════════════ 잔재주 ═══════════════════ */
+
+  function toast(message) {
+    const el = $("toast");
+    el.textContent = message;
+    el.classList.add("on");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => el.classList.remove("on"), 1900);
+  }
+
+  async function copy(text, label) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(label + " 복사했습니다");
+    } catch {
+      // 클립보드가 막힌 환경 — 선택만 해준다
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.cssText = "position:fixed;top:-1000px";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); toast(label + " 복사했습니다"); }
+      catch { toast("복사가 막혀 있습니다. 미리보기에서 직접 선택하세요"); }
+      ta.remove();
+    }
+  }
+
+  function tc(seconds) {
+    const s = Math.max(0, Number(seconds) || 0);
+    const m = Math.floor(s / 60);
+    const rest = s - m * 60;
+    return String(m).padStart(2, "0") + ":" + rest.toFixed(2).padStart(5, "0");
+  }
+
+  function parseTc(text, fallback) {
+    const raw = String(text).trim();
+    if (raw.includes(":")) {
+      const [m, s] = raw.split(":");
+      const value = Number(m) * 60 + Number(s);
+      return Number.isFinite(value) ? value : fallback;
+    }
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  function get(obj, path) {
+    return path.split(".").reduce((o, k) => (o == null ? o : o[k]), obj);
+  }
+  function set(obj, path, value) {
+    const keys = path.split(".");
+    const last = keys.pop();
+    const target = keys.reduce((o, k) => (o[k] = o[k] || {}), obj);
+    target[last] = value;
+  }
+
+  /* ═══════════════════ YAML 만들기 ═══════════════════ */
+
+  function yamlScalar(value) {
+    if (value === null || value === undefined || value === "") return '""';
+    if (typeof value === "boolean") return value ? "true" : "false";
+    if (typeof value === "number") return String(value);
+    const text = String(value);
+    if (/[:#\-?*&!|>%@`{}\[\],'"]/.test(text[0]) || /: |#/.test(text) || /^\s|\s$/.test(text)) {
+      return '"' + text.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+    }
+    return text;
+  }
+
+  function yamlBlock(key, text, indent) {
+    const pad = " ".repeat(indent);
+    const lines = String(text).split("\n");
+    return pad + key + ": |\n" + lines.map((l) => pad + "  " + l).join("\n");
+  }
+
+  function toYaml(b) {
+    const out = [];
+    const push = (s) => out.push(s);
+
+    push("# 리얼포지 기획 브리프 — 웹 편집대에서 생성");
+    push("project: " + yamlScalar(b.project));
+    push("");
+    push("footage:");
+    (b.footage.length ? b.footage : ["raw/take1.mp4"]).forEach((f) => push("  - " + yamlScalar(f)));
+    push("");
+    push("aspect: " + yamlScalar(b.aspect));
+    push("fps: " + b.fps);
+    push("");
+    push("# ── 기획 ──");
+    push("hook: " + yamlScalar(b.hook));
+    if (b.idea.trim()) push(yamlBlock("idea", b.idea.trimEnd(), 0));
+    push("cta: " + yamlScalar(b.cta));
+    if (b.keywords.length) {
+      push("");
+      push("keywords:");
+      b.keywords.forEach((k) => push("  - " + yamlScalar(k)));
+    }
+    if (b.script.trim()) {
+      push("");
+      push("# ── 대본 (AI 나레이션용) ──");
+      push(yamlBlock("script", b.script.trimEnd(), 0));
+    }
+    push("");
+    push("# ── 자막 ──");
+    push("captions:");
+    push("  source: " + yamlScalar(b.captions.source));
+    push("  style: " + yamlScalar(b.captions.style));
+    push("  max_chars: " + b.captions.max_chars);
+    push("  max_lines: " + b.captions.max_lines);
+    push("  min_duration: " + b.captions.min_duration);
+    push("  max_duration: " + b.captions.max_duration);
+    push("  position: " + b.captions.position);
+    push("");
+    push("# ── AI 오디오 ──");
+    push("narration:");
+    push("  enabled: " + (b.narration.enabled ? "true" : "false"));
+    push("  provider: " + yamlScalar(b.narration.provider));
+    push("  voice: " + yamlScalar(b.narration.voice));
+    push("  speed: " + b.narration.speed);
+    push("  mode: " + yamlScalar(b.narration.mode));
+    push("  align: " + yamlScalar(b.narration.align));
+    push("  original_gain_db: " + b.narration.original_gain_db);
+    if (b.music) {
+      push("");
+      push("music: " + yamlScalar(b.music));
+    }
+    push("music_gain_db: " + b.music_gain_db);
+    push("");
+    push("# ── 컷 강도 ──");
+    push("cut:");
+    push("  max_pause: " + b.cut.max_pause);
+    push("  min_clip: " + b.cut.min_clip);
+    push("  trim_head_tail: " + (b.cut.trim_head_tail ? "true" : "false"));
+    push("  drop_retakes: " + (b.cut.drop_retakes ? "true" : "false"));
+    push("");
+    push("filler:");
+    push("  dead_air: " + b.filler.dead_air);
+    push("  soft_pause: " + b.filler.soft_pause);
+    if (b.protect.length) {
+      push("");
+      push("protect:");
+      b.protect.forEach(([a, z]) => push("  - [" + a + ", " + z + "]"));
+    }
+    push("");
+    push("stt_model: " + yamlScalar(b.stt_model));
+    push("language: " + yamlScalar(b.language));
+    return out.join("\n") + "\n";
+  }
+
+  function briefFilename() {
+    const name = (brief.project || "브리프").replace(/[\\/:*?"<>|]/g, "_");
+    return name;
+  }
+
+  /* ═══════════════════ 브리프 폼 ═══════════════════ */
+
+  function bindFields() {
+    document.querySelectorAll("[data-k]").forEach((el) => {
+      const key = el.dataset.k;
+      const event = el.type === "checkbox" || el.tagName === "SELECT" ? "change" : "input";
+      el.addEventListener(event, () => {
+        let value;
+        if (el.type === "checkbox") value = el.checked;
+        else if (el.type === "number" || el.type === "range") value = Number(el.value);
+        else value = el.value;
+        set(brief, key, value);
+        renderOutputs();
+      });
+    });
+
+    $("f-aspect").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-v]");
+      if (!btn) return;
+      brief.aspect = btn.dataset.v;
+      renderAll();
+    });
+
+    document.querySelectorAll("[data-preset]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const preset = PRESETS[btn.dataset.preset];
+        Object.assign(brief.cut, preset.cut);
+        Object.assign(brief.filler, preset.filler);
+        renderAll();
+        toast("컷 강도: " + btn.textContent);
+      });
+    });
+
+    $("add-footage").addEventListener("click", () => {
+      brief.footage.push("");
+      renderFootage();
+      renderOutputs();
+    });
+    $("add-protect").addEventListener("click", () => {
+      brief.protect.push([0, 1]);
+      renderProtect();
+      renderOutputs();
+    });
+
+    const kw = $("f-keyword-input");
+    kw.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      const value = kw.value.trim();
+      if (value && !brief.keywords.includes(value)) {
+        brief.keywords.push(value);
+        renderKeywords();
+        renderOutputs();
+      }
+      kw.value = "";
+    });
+
+    $("f-script").addEventListener("input", renderScriptCount);
+  }
+
+  function renderFootage() {
+    const host = $("f-footage");
+    host.textContent = "";
+    brief.footage.forEach((path, i) => {
+      const row = document.createElement("div");
+      row.className = "row-item";
+      const input = document.createElement("input");
+      input.type = "text";
+      input.value = path;
+      input.placeholder = "raw/take1.mp4";
+      input.setAttribute("aria-label", "촬영 파일 " + (i + 1));
+      input.addEventListener("input", () => { brief.footage[i] = input.value; renderOutputs(); });
+      const del = document.createElement("button");
+      del.className = "icon-btn";
+      del.type = "button";
+      del.textContent = "×";
+      del.title = "삭제";
+      del.addEventListener("click", () => {
+        brief.footage.splice(i, 1);
+        renderFootage(); renderOutputs();
+      });
+      row.append(input, del);
+      host.append(row);
+    });
+  }
+
+  function renderProtect() {
+    const host = $("f-protect");
+    host.textContent = "";
+    brief.protect.forEach((pair, i) => {
+      const row = document.createElement("div");
+      row.className = "row-item";
+      ["시작", "끝"].forEach((label, j) => {
+        const input = document.createElement("input");
+        input.type = "number";
+        input.step = "0.1";
+        input.value = pair[j];
+        input.setAttribute("aria-label", "보호 구간 " + (i + 1) + " " + label);
+        input.addEventListener("input", () => {
+          brief.protect[i][j] = Number(input.value);
+          renderOutputs();
+        });
+        row.append(input);
+      });
+      const del = document.createElement("button");
+      del.className = "icon-btn";
+      del.type = "button";
+      del.textContent = "×";
+      del.title = "삭제";
+      del.addEventListener("click", () => {
+        brief.protect.splice(i, 1);
+        renderProtect(); renderOutputs();
+      });
+      row.append(del);
+      host.append(row);
+    });
+  }
+
+  function renderKeywords() {
+    const host = $("f-keywords");
+    host.textContent = "";
+    brief.keywords.forEach((word, i) => {
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.append(document.createTextNode(word));
+      const del = document.createElement("button");
+      del.type = "button";
+      del.textContent = "×";
+      del.setAttribute("aria-label", word + " 삭제");
+      del.addEventListener("click", () => {
+        brief.keywords.splice(i, 1);
+        renderKeywords(); renderOutputs();
+      });
+      chip.append(del);
+      host.append(chip);
+    });
+  }
+
+  function renderScriptCount() {
+    const lines = brief.script.split("\n").map((l) => l.trim()).filter(Boolean).length;
+    $("script-count").textContent =
+      lines ? lines + "줄 · 한 줄 = 한 호흡. AI 나레이션을 켜면 이대로 읽습니다"
+            : "한 줄 = 한 호흡. AI 나레이션을 켜면 이대로 읽습니다";
+  }
+
+  function renderCaptionFrame() {
+    const pos = brief.captions.position;
+    const frame = $("cap-frame");
+    const ratio = { "9:16": 16 / 9, "4:5": 5 / 4, "1:1": 1, "16:9": 9 / 16 }[brief.aspect] || 16 / 9;
+    frame.style.height = Math.round(84 * ratio) + "px";
+    $("cap-sample").style.top = (pos * 100) + "%";
+    $("cap-band").style.top = (pos * 100) + "%";
+    const sample = brief.hook || "여기에 자막";
+    const limit = brief.captions.max_chars;
+    const words = sample.split(" ");
+    const lines = [];
+    let line = "";
+    for (const word of words) {
+      const candidate = (line + " " + word).trim();
+      if (line && candidate.length > limit && lines.length + 1 < brief.captions.max_lines) {
+        lines.push(line); line = word;
+      } else line = candidate;
+    }
+    if (line) lines.push(line);
+    const el = $("cap-sample");
+    el.textContent = "";
+    lines.slice(0, brief.captions.max_lines).forEach((text, i) => {
+      if (i) el.append(document.createElement("br"));
+      el.append(document.createTextNode(text));
+    });
+    const styleColors = {
+      reels_bold: "#ffffff", pop_yellow: "#fff33f",
+      minimal: "#ffffff", caption_box: "#ffffff",
+    };
+    el.style.color = styleColors[brief.captions.style] || "#fff";
+    el.style.fontWeight = brief.captions.style === "minimal" ? "500" : "700";
+  }
+
+  function renderOutputs() {
+    const yaml = toYaml(brief);
+    $("yaml-out").textContent = yaml;
+    $("yaml-size").textContent = yaml.split("\n").length + "줄 · " + new Blob([yaml]).size + " B";
+    $("cli-cmd").textContent = "reelforge build " + briefFilename() + ".yaml";
+    renderCaptionFrame();
+    renderScriptCount();
+    saveLocal();
+  }
+
+  function renderAll() {
+    document.querySelectorAll("[data-k]").forEach((el) => {
+      const value = get(brief, el.dataset.k);
+      if (el.type === "checkbox") el.checked = !!value;
+      else if (value !== undefined && value !== null) el.value = value;
+    });
+    document.querySelectorAll("#f-aspect button").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.v === brief.aspect));
+    });
+    const outputs = {
+      "o-cap-chars": brief.captions.max_chars + "자",
+      "o-cap-lines": brief.captions.max_lines + "줄",
+      "o-cap-pos": Math.round(brief.captions.position * 100) + "%",
+      "o-cap-min": brief.captions.min_duration.toFixed(2) + "s",
+      "o-narr-speed": "×" + brief.narration.speed.toFixed(2),
+      "o-cut-pause": brief.cut.max_pause.toFixed(2) + "s",
+      "o-cut-dead": brief.filler.dead_air.toFixed(2) + "s",
+      "o-cut-soft": brief.filler.soft_pause.toFixed(2) + "s",
+      "o-cut-min": brief.cut.min_clip.toFixed(2) + "s",
+      "o-music-gain": brief.music_gain_db + " dB",
+    };
+    Object.entries(outputs).forEach(([id, text]) => { $(id).textContent = text; });
+    $("narr-fields").style.opacity = brief.narration.enabled ? "1" : ".45";
+    renderFootage();
+    renderProtect();
+    renderKeywords();
+    renderOutputs();
+  }
+
+  document.addEventListener("input", (e) => {
+    if (e.target.matches('input[type="range"][data-k]')) renderAll();
+  });
+
+  /* ═══════════════════ 컷 검토 ═══════════════════ */
+
+  function planSources() {
+    const seen = [];
+    originalClips.forEach((c) => { if (!seen.includes(c.source)) seen.push(c.source); });
+    plan.removed.forEach((r) => { if (r.source && !seen.includes(r.source)) seen.push(r.source); });
+    return seen;
+  }
+
+  function sourceDuration(source) {
+    let end = 0;
+    originalClips.forEach((c) => { if (c.source === source) end = Math.max(end, c.source_end); });
+    plan.removed.forEach((r) => { if (r.source === source) end = Math.max(end, r.end); });
+    return end;
+  }
+
+  // 되살린 컷을 뺀 나머지로 클립을 다시 깐다.
+  function recomputeClips() {
+    const active = plan.removed.filter((_, i) => !restored.has(i));
+    const clips = [];
+    let cursor = 0;
+    planSources().forEach((source) => {
+      const duration = sourceDuration(source);
+      const spans = active
+        .filter((r) => r.source === source)
+        .map((r) => [Math.max(0, r.start), Math.min(duration, r.end)])
+        .filter(([a, z]) => z > a)
+        .sort((a, b) => a[0] - b[0]);
+
+      let at = 0;
+      const keep = [];
+      spans.forEach(([a, z]) => {
+        if (a > at) keep.push([at, a]);
+        at = Math.max(at, z);
+      });
+      if (at < duration) keep.push([at, duration]);
+
+      keep.forEach(([a, z]) => {
+        if (z - a <= 0.001) return;
+        clips.push({
+          source,
+          source_start: round(a), source_end: round(z),
+          timeline_start: round(cursor), speed: 1,
+        });
+        cursor += z - a;
+      });
+    });
+    return clips;
+  }
+
+  function round(n) { return Math.round(n * 1000) / 1000; }
+
+  // 타임라인 시각 → 원본 시각
+  function toSource(clips, t) {
+    for (const c of clips) {
+      const length = (c.source_end - c.source_start) / (c.speed || 1);
+      if (t >= c.timeline_start - 1e-6 && t <= c.timeline_start + length + 1e-6) {
+        return { source: c.source, at: c.source_start + (t - c.timeline_start) * (c.speed || 1) };
+      }
+    }
+    const last = clips[clips.length - 1];
+    return last ? { source: last.source, at: last.source_end } : null;
+  }
+
+  // 원본 시각 → 타임라인 시각 (잘린 지점이면 가장 가까운 살아있는 지점)
+  function toTimeline(clips, source, at) {
+    let best = 0, gap = Infinity;
+    for (const c of clips) {
+      if (c.source !== source) continue;
+      if (at >= c.source_start && at < c.source_end) {
+        return c.timeline_start + (at - c.source_start) / (c.speed || 1);
+      }
+      const length = (c.source_end - c.source_start) / (c.speed || 1);
+      [[c.source_start, c.timeline_start], [c.source_end, c.timeline_start + length]]
+        .forEach(([s, tl]) => {
+          const d = Math.abs(s - at);
+          if (d < gap) { gap = d; best = tl; }
+        });
+    }
+    return best;
+  }
+
+  // 자막은 타임라인 시각이 아니라 '원본 어디를 가리키는지'로 붙들어 둔다.
+  // 그래야 컷을 되살렸다 되돌려도 제자리를 찾고, 손으로 고친 값도 살아남는다.
+  function buildAnchors(captions, clips) {
+    return captions.map((cap) => ({
+      text: cap.text,
+      style: cap.style,
+      emphasis: cap.emphasis || [],
+      position: cap.position,
+      s: toSource(clips, cap.start),
+      e: toSource(clips, cap.end),
+    }));
+  }
+
+  function captionsFromAnchors(clips) {
+    return capAnchors.map((a) => {
+      const start = a.s ? toTimeline(clips, a.s.source, a.s.at) : 0;
+      const end = a.e ? toTimeline(clips, a.e.source, a.e.at) : start + 1;
+      return {
+        text: a.text,
+        start: round(start),
+        end: round(Math.max(end, start + 0.3)),
+        style: a.style,
+        emphasis: a.emphasis,
+        position: a.position,
+      };
+    });
+  }
+
+  function applyRestores() {
+    const clips = recomputeClips();
+    plan.clips = clips;
+    plan.captions = captionsFromAnchors(clips);
+    renderPlan();
+  }
+
+  function planDuration() {
+    let end = 0;
+    plan.clips.forEach((c) => {
+      end = Math.max(end, c.timeline_start + (c.source_end - c.source_start) / (c.speed || 1));
+    });
+    plan.captions.forEach((c) => { end = Math.max(end, c.end); });
+    return end;
+  }
+
+  function renderPlan() {
+    const originalTotal = planSources().reduce((sum, s) => sum + sourceDuration(s), 0);
+    const edited = planDuration();
+    const cutSeconds = plan.removed
+      .filter((_, i) => !restored.has(i))
+      .reduce((sum, r) => sum + (r.end - r.start), 0);
+
+    $("plan-title").textContent = planIsSample ? "예시 데이터입니다." : plan.project;
+    $("plan-sub").textContent = planIsSample
+      ? " 아래 내보내기에서 직접 만든 plan.json 을 올리면 그 내용으로 바뀝니다."
+      : " 컷을 되살리거나 자막을 고친 뒤 아래에서 다시 받아가세요.";
+    $("plan-banner").classList.toggle("warn", false);
+
+    const stats = [
+      ["원본", tc(originalTotal), ""],
+      ["편집본", tc(edited), ""],
+      ["제거", tc(cutSeconds), "cut"],
+      ["클립", String(plan.clips.length), ""],
+      ["자막", String(plan.captions.length), ""],
+    ];
+    const host = $("plan-stats");
+    host.textContent = "";
+    stats.forEach(([k, v, cls]) => {
+      const box = document.createElement("div");
+      box.className = "stat " + cls;
+      const kk = document.createElement("div");
+      kk.className = "k"; kk.textContent = k;
+      const vv = document.createElement("div");
+      vv.className = "v"; vv.textContent = v;
+      box.append(kk, vv);
+      host.append(box);
+    });
+
+    renderStrips();
+    renderCutRows();
+    renderCapRows();
+    $("cut-count").textContent =
+      plan.removed.length + "개 중 " + restored.size + "개 되살림";
+  }
+
+  function renderStrips() {
+    const host = $("strips");
+    host.textContent = "";
+    planSources().forEach((source) => {
+      const duration = sourceDuration(source) || 1;
+      const wrap = document.createElement("div");
+      wrap.className = "track-strip";
+
+      const name = document.createElement("div");
+      name.className = "nm";
+      const left = document.createElement("span");
+      left.textContent = source.split("/").pop();
+      const right = document.createElement("span");
+      right.className = "mono";
+      right.textContent = tc(duration);
+      name.append(left, right);
+
+      const strip = document.createElement("div");
+      strip.className = "strip";
+      plan.removed.forEach((span, index) => {
+        if (span.source !== source) return;
+        const seg = document.createElement("button");
+        seg.type = "button";
+        seg.className = "seg-cut" + (restored.has(index) ? " off" : "");
+        seg.style.left = (span.start / duration * 100) + "%";
+        seg.style.width = Math.max(0.4, (span.end - span.start) / duration * 100) + "%";
+        seg.title = tc(span.start) + " – " + tc(span.end) + " · " + (span.detail || span.reason);
+        seg.setAttribute("aria-label",
+          (restored.has(index) ? "되살림: " : "잘림: ") + seg.title);
+        seg.addEventListener("click", () => toggleRestore(index));
+        strip.append(seg);
+      });
+
+      const ruler = document.createElement("div");
+      ruler.className = "ruler";
+      [0, 0.25, 0.5, 0.75, 1].forEach((f) => {
+        const mark = document.createElement("span");
+        mark.textContent = tc(duration * f);
+        ruler.append(mark);
+      });
+
+      wrap.append(name, strip, ruler);
+      host.append(wrap);
+    });
+  }
+
+  function toggleRestore(index) {
+    if (restored.has(index)) restored.delete(index);
+    else restored.add(index);
+    applyRestores();
+  }
+
+  function renderCutRows() {
+    const body = $("cut-rows");
+    body.textContent = "";
+    if (!plan.removed.length) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 5;
+      td.style.color = "var(--ink-faint)";
+      td.textContent = "잘라낸 구간이 없습니다.";
+      tr.append(td); body.append(tr);
+      return;
+    }
+    plan.removed
+      .map((span, index) => ({ span, index }))
+      .sort((a, b) => a.span.start - b.span.start)
+      .forEach(({ span, index }) => {
+        const tr = document.createElement("tr");
+        if (restored.has(index)) tr.className = "restored";
+
+        const range = document.createElement("td");
+        range.className = "tc";
+        range.textContent = tc(span.start) + " → " + tc(span.end);
+
+        const dur = document.createElement("td");
+        dur.className = "dur";
+        dur.textContent = "−" + (span.end - span.start).toFixed(2) + "s";
+
+        const reason = document.createElement("td");
+        const tag = document.createElement("span");
+        const kind = (span.reason || "").split("+")[0];
+        tag.className = "tag " + (["silence", "filler", "stutter", "retake"].includes(kind) ? kind : "silence");
+        tag.textContent = {
+          silence: "정적", dead_air: "정적", filler: "필러",
+          stutter: "말더듬", retake: "재촬영",
+        }[kind] || kind || "정적";
+        reason.append(tag);
+
+        const detail = document.createElement("td");
+        detail.style.color = "var(--ink-soft)";
+        detail.textContent = (span.detail || "").replace(/^[^:]+:\s*/, "");
+
+        const action = document.createElement("td");
+        const label = document.createElement("label");
+        label.className = "switch";
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.checked = restored.has(index);
+        box.setAttribute("aria-label", "이 구간 되살리기");
+        box.addEventListener("change", () => toggleRestore(index));
+        const track = document.createElement("span");
+        track.className = "track";
+        label.append(box, track);
+        action.append(label);
+
+        tr.append(range, dur, reason, detail, action);
+        body.append(tr);
+      });
+  }
+
+  function renderCapRows() {
+    const body = $("cap-rows");
+    body.textContent = "";
+    plan.captions.forEach((cap, i) => {
+      const tr = document.createElement("tr");
+
+      const mk = (key) => {
+        const td = document.createElement("td");
+        const input = document.createElement("input");
+        input.className = "tc-input";
+        input.value = tc(cap[key]);
+        input.setAttribute("aria-label", (key === "start" ? "시작" : "끝") + " 시각");
+        input.addEventListener("change", () => {
+          const at = round(parseTc(input.value, cap[key]));
+          const anchor = capAnchors[i];
+          if (anchor) anchor[key === "start" ? "s" : "e"] = toSource(plan.clips, at);
+          plan.captions = captionsFromAnchors(plan.clips);
+          renderPlan();
+        });
+        td.append(input);
+        return td;
+      };
+
+      const text = document.createElement("td");
+      const area = document.createElement("textarea");
+      area.className = "cap-text";
+      area.rows = cap.text.includes("\n") ? 2 : 1;
+      area.value = cap.text;
+      area.setAttribute("aria-label", "자막 " + (i + 1));
+      area.addEventListener("input", () => {
+        cap.text = area.value;
+        if (capAnchors[i]) capAnchors[i].text = area.value;
+      });
+      text.append(area);
+
+      const action = document.createElement("td");
+      const del = document.createElement("button");
+      del.className = "icon-btn";
+      del.type = "button";
+      del.textContent = "×";
+      del.title = "이 자막 삭제";
+      del.addEventListener("click", () => {
+        plan.captions.splice(i, 1);
+        capAnchors.splice(i, 1);
+        renderPlan();
+      });
+      action.append(del);
+
+      tr.append(mk("start"), mk("end"), text, action);
+      body.append(tr);
+    });
+  }
+
+  function loadPlan(data, { sample = false } = {}) {
+    if (!data || !Array.isArray(data.clips)) {
+      toast("plan.json 형식이 아닙니다 (clips 가 없습니다)");
+      return false;
+    }
+    plan = clone(data);
+    plan.removed = plan.removed || [];
+    plan.captions = plan.captions || [];
+    plan.narration = plan.narration || [];
+    // source 가 없는 예전 plan.json 은 첫 촬영본 것으로 본다
+    const fallback = plan.clips.length ? plan.clips[0].source : "";
+    plan.removed.forEach((r) => { if (!r.source) r.source = fallback; });
+    originalClips = clone(plan.clips);
+    capAnchors = buildAnchors(plan.captions, originalClips);
+    restored = new Set();
+    planIsSample = sample;
+    renderPlan();
+    return true;
+  }
+
+  function planForExport() {
+    const out = clone(plan);
+    out.removed = plan.removed.filter((_, i) => !restored.has(i));
+    return JSON.stringify(out, null, 2);
+  }
+
+  /* ═══════════════════ 저장 ═══════════════════ */
+
+  function saveLocal() {
+    try { localStorage.setItem("reelforge.brief", JSON.stringify(brief)); } catch { /* 시크릿 창 */ }
+  }
+
+  function loadLocal() {
+    try {
+      const raw = localStorage.getItem("reelforge.brief");
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      brief = Object.assign(clone(DEFAULT_BRIEF), saved, {
+        captions: Object.assign({}, DEFAULT_BRIEF.captions, saved.captions),
+        narration: Object.assign({}, DEFAULT_BRIEF.narration, saved.narration),
+        cut: Object.assign({}, DEFAULT_BRIEF.cut, saved.cut),
+        filler: Object.assign({}, DEFAULT_BRIEF.filler, saved.filler),
+      });
+    } catch { /* 저장된 게 깨졌으면 기본값으로 */ }
+  }
+
+  async function refreshSaved() {
+    const host = $("saved-list");
+    if (!db) return;
+    host.textContent = "";
+    let snap;
+    try { snap = await db.collection("briefs").orderBy("updatedAt", "desc").limit(30).get(); }
+    catch { return; }
+    if (snap.empty) {
+      const note = document.createElement("div");
+      note.className = "rail-empty";
+      note.textContent = "아직 없습니다. 브리프를 채우고 ‘이 페이지에 저장’을 누르세요.";
+      host.append(note);
+      return;
+    }
+    snap.docs.forEach((doc) => {
+      const data = doc.data() || {};
+      const btn = document.createElement("button");
+      btn.className = "saved-item" + (doc.id === currentDocId ? " on" : "");
+      btn.type = "button";
+      const nm = document.createElement("span");
+      nm.className = "nm";
+      nm.textContent = data.project || doc.id;
+      const tm = document.createElement("span");
+      tm.className = "tm";
+      tm.textContent = data.updatedAt ? new Date(data.updatedAt).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" }) : "";
+      btn.append(nm, tm);
+      btn.addEventListener("click", () => {
+        if (!data.brief) return;
+        brief = Object.assign(clone(DEFAULT_BRIEF), data.brief);
+        currentDocId = doc.id;
+        renderAll();
+        refreshSaved();
+        toast(nm.textContent + " 불러왔습니다");
+      });
+      host.append(btn);
+    });
+  }
+
+  function slug(text) {
+    return String(text).trim().replace(/[^\p{L}\p{N}_-]+/gu, "-").replace(/^-+|-+$/g, "").slice(0, 60)
+      || ("brief-" + Date.now());
+  }
+
+  async function saveToDb() {
+    if (!db) { toast("이 화면에서는 페이지 저장을 쓸 수 없습니다"); return; }
+    const id = slug(brief.project);
+    try {
+      await db.doc("briefs/" + id).set({
+        project: brief.project,
+        updatedAt: new Date().toISOString(),
+        brief: brief,
+        yaml: toYaml(brief),
+      });
+      currentDocId = id;
+      toast("저장했습니다");
+      refreshSaved();
+    } catch (err) {
+      toast(err && err.code === "quota_exceeded"
+        ? "저장 공간이 가득 찼습니다. 오래된 브리프를 지워주세요"
+        : "저장하지 못했습니다");
+    }
+  }
+
+  async function download(filename, text, label) {
+    if (!downloads) { await copy(text, label); return; }
+    try {
+      await downloads.save({ filename, data: text });
+      toast(filename + " 받았습니다");
+    } catch (err) {
+      const code = err && err.code;
+      if (code === "declined") return;
+      if (code === "rejected_extension") { toast("이 형식은 받을 수 없어 복사로 대신합니다"); await copy(text, label); return; }
+      toast("파일을 받지 못해 복사로 대신합니다");
+      await copy(text, label);
+    }
+  }
+
+  /* ═══════════════════ 배선 ═══════════════════ */
+
+  function switchTab(which) {
+    const isBrief = which === "brief";
+    $("tab-brief").setAttribute("aria-selected", String(isBrief));
+    $("tab-plan").setAttribute("aria-selected", String(!isBrief));
+    $("panel-brief").hidden = !isBrief;
+    $("panel-plan").hidden = isBrief;
+  }
+
+  $("tab-brief").addEventListener("click", () => switchTab("brief"));
+  $("tab-plan").addEventListener("click", () => switchTab("plan"));
+
+  $("copy-yaml").addEventListener("click", () => copy(toYaml(brief), "YAML을"));
+  $("copy-cli").addEventListener("click", () => copy($("cli-cmd").textContent, "명령을"));
+  $("copy-cli2").addEventListener("click", () => copy("reelforge export plan.json", "명령을"));
+  $("dl-yaml").addEventListener("click", () =>
+    download(briefFilename() + ".yaml", toYaml(brief), "YAML을"));
+  $("dl-json").addEventListener("click", () =>
+    download(briefFilename() + ".json", JSON.stringify(briefForJson(), null, 2), "브리프를"));
+  $("save-db").addEventListener("click", saveToDb);
+
+  $("new-brief").addEventListener("click", () => {
+    brief = clone(DEFAULT_BRIEF);
+    brief.project = "새_릴스";
+    currentDocId = null;
+    renderAll();
+    refreshSaved();
+    switchTab("brief");
+  });
+
+  // CLI 의 브리프 로더는 .json 도 그대로 읽는다 (yaml 확장자는 내려받기 허용 목록 밖).
+  function briefForJson() {
+    const out = clone(brief);
+    if (!out.music) delete out.music;
+    return out;
+  }
+
+  $("dl-plan").addEventListener("click", () =>
+    download((plan.project || "plan") + ".json", planForExport(), "plan.json을"));
+  $("copy-plan").addEventListener("click", () => copy(planForExport(), "plan.json을"));
+  $("reset-cuts").addEventListener("click", () => {
+    restored = new Set();
+    plan.clips = clone(originalClips);
+    plan.captions = captionsFromAnchors(plan.clips);
+    renderPlan();
+    toast("되살린 컷을 원복했습니다");
+  });
+  $("add-caption").addEventListener("click", () => {
+    const last = plan.captions[plan.captions.length - 1];
+    const start = last ? last.end + 0.1 : 0;
+    capAnchors.push({
+      text: "새 자막",
+      style: brief.captions.style,
+      emphasis: [],
+      position: brief.captions.position,
+      s: toSource(plan.clips, start),
+      e: toSource(plan.clips, start + 1.2),
+    });
+    plan.captions = captionsFromAnchors(plan.clips);
+    renderPlan();
+  });
+
+  const dropzone = $("dropzone");
+  const fileInput = $("file-input");
+  $("pick-file").addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files[0]) readPlanFile(fileInput.files[0]);
+  });
+  ["dragenter", "dragover"].forEach((type) =>
+    dropzone.addEventListener(type, (e) => { e.preventDefault(); dropzone.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((type) =>
+    dropzone.addEventListener(type, (e) => { e.preventDefault(); dropzone.classList.remove("over"); }));
+  dropzone.addEventListener("drop", (e) => {
+    const file = e.dataTransfer && e.dataTransfer.files[0];
+    if (file) readPlanFile(file);
+  });
+
+  function readPlanFile(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        if (loadPlan(JSON.parse(String(reader.result)))) {
+          toast(file.name + " 불러왔습니다");
+          switchTab("plan");
+        }
+      } catch {
+        toast("JSON을 읽지 못했습니다");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  /* ═══════════════════ 시작 ═══════════════════ */
+
+  bindFields();
+  loadLocal();
+  renderAll();
+  loadPlan(SAMPLE_PLAN, { sample: true });
+
+  // 런타임 기능은 있으면 켜고, 없으면 없는 대로 돈다.
+  if (window.claude && typeof window.claude.use === "function") {
+    window.claude.use("db").then((namespace) => {
+      db = namespace;
+      if (!db) return;
+      $("sync-dot").classList.add("live");
+      $("sync-text").textContent = "이 페이지에 저장됨";
+      $("rail-note").textContent = "여기 저장한 브리프는 Claude가 그대로 읽어 build 할 수 있습니다.";
+      refreshSaved();
+    }).catch(() => {});
+    window.claude.use("downloads").then((namespace) => {
+      downloads = namespace;
+      if (!downloads) {
+        ["dl-json", "dl-yaml", "dl-plan"].forEach((id) => {
+          $(id).textContent = $(id).textContent.replace("받기", "복사");
+        });
+      }
+    }).catch(() => {});
+  } else {
+    $("sync-text").textContent = "로컬 보관";
+  }
+})();
+</script>

@@ -56,6 +56,7 @@ class Span:
     end: float
     reason: str = ""          # silence / filler / retake / manual ...
     detail: str = ""          # 사람이 읽을 근거 ("음...", "3.2s 무음")
+    source: str = ""          # 어느 원본의 구간인지 (컷을 되살릴 때 필요)
 
     @property
     def duration(self) -> float:
@@ -65,7 +66,9 @@ class Span:
         return self.start < other.end and other.start < self.end
 
     def clamped(self, lo: float, hi: float) -> "Span":
-        return Span(max(self.start, lo), min(self.end, hi), self.reason, self.detail)
+        return Span(
+            max(self.start, lo), min(self.end, hi), self.reason, self.detail, self.source
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -204,6 +207,7 @@ def merge_spans(spans: Iterable[Span], gap: float = 0.0) -> list[Span]:
                 max(prev.end, span.end),
                 "+".join(sorted(reasons)),
                 " / ".join(details),
+                prev.source or span.source,
             )
         else:
             merged.append(Span(span.start, span.end, span.reason, span.detail))

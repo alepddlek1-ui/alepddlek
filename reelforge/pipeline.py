@@ -128,7 +128,8 @@ def build_plan(
         clips_by_source[analysis.path] = clips
         plan.clips += clips
         plan.removed += [
-            Span(r.start, r.end, r.reason, f"{path.name}: {r.detail}") for r in analysis.removed
+            Span(r.start, r.end, r.reason, f"{path.name}: {r.detail}", analysis.path)
+            for r in analysis.removed
         ]
         cursor = clips[-1].timeline_end if clips else cursor
         analyses.append(analysis)

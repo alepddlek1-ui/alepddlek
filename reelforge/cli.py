@@ -166,6 +166,34 @@ def _print_removed(plan: EditPlan, limit: int) -> None:
         print(f"  {span.start:7.2f} → {span.end:7.2f}  ({span.duration:4.2f}s)  {span.detail or span.reason}")
 
 
+def cmd_export(args) -> int:
+    """웹 편집기 등에서 손본 plan.json → 캡컷 프로젝트 다시 만들기."""
+    from .export.capcut.draft import write_draft
+    from .export.srt import write_srt
+
+    plan = EditPlan.load(args.plan)
+    template = None if args.no_template else capcut_calibrate.load(
+        args.template or capcut_calibrate.default_template_path()
+    )
+    target = Path(args.projects_dir) if args.projects_dir else (
+        default_projects_dir() or Path(args.plan).parent / "capcut"
+    )
+    folder = write_draft(
+        plan, target,
+        style_name=args.style,
+        mute_original=args.mute_original,
+        jump_cut_zoom=args.jump_cut_zoom,
+        template=template,
+    )
+    print(_ok(f"캡컷 프로젝트: {folder}"))
+    if plan.captions:
+        srt = write_srt(plan.captions, Path(args.plan).parent / f"{plan.project}.srt")
+        print(_ok(f"자막: {srt}"))
+    print(f"  클립 {len(plan.clips)}개 · 자막 {len(plan.captions)}장 · {plan.duration:.1f}s")
+    print(f"\n{DIM}캡컷을 완전히 종료했다 다시 켜면 목록에 뜹니다.{RESET}")
+    return 0
+
+
 def cmd_render(args) -> int:
     from .export.render import render_preview
 
@@ -254,6 +282,16 @@ def build_parser() -> argparse.ArgumentParser:
                    help="점프컷 완화용 교대 확대 비율 (예: 0.03)")
     p.add_argument("--show-cuts", type=int, default=8, help="잘라낸 구간 출력 개수")
     p.set_defaults(func=cmd_build)
+
+    p = sub.add_parser("export", help="손본 plan.json → 캡컷 프로젝트 다시 만들기")
+    p.add_argument("plan", help="plan.json 경로 (웹 편집기에서 받은 파일도 됩니다)")
+    p.add_argument("--projects-dir", help="캡컷 프로젝트 폴더")
+    p.add_argument("--style", help="자막 스타일을 통째로 덮어쓰기")
+    p.add_argument("--mute-original", action="store_true", help="원본 오디오 음소거")
+    p.add_argument("--jump-cut-zoom", type=float, default=0.0)
+    p.add_argument("--template")
+    p.add_argument("--no-template", action="store_true")
+    p.set_defaults(func=cmd_export)
 
     p = sub.add_parser("render", help="ffmpeg 미리보기 mp4")
     p.add_argument("brief", nargs="?")
