@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# 작업 캐시 (전사 결과 · 추출 wav · TTS mp3)
+.reelforge/
+out/
+*.mp4
+*.mov
+*.mp3
+*.wav
+!examples/**/*.mp3

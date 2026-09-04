@@ -1,0 +1,78 @@
+# ─────────────────────────────────────────────────────────────
+#  릴스 기획 브리프
+#  이 파일 한 장이 입력의 전부다. 채우고 `reelforge build 이파일.yaml`
+# ─────────────────────────────────────────────────────────────
+project: 여름신상_릴스
+
+# 촬영한 영상들 (여러 개면 순서대로 이어붙는다)
+footage:
+  - raw/take1.mp4
+  # - raw/take2.mp4
+
+aspect: "9:16"      # 9:16 릴스 · 4:5 피드 · 1:1 · 16:9
+fps: 30
+
+# ── 기획 ────────────────────────────────────────────────────
+# hook: 0~2초에 크게 박히는 첫 문장. 여기서 스크롤을 멈춰야 한다.
+hook: "이거 모르면 계속 손해봅니다"
+# idea: 기획 의도 메모. 편집에는 직접 안 쓰이지만 나중에 왜 이렇게 만들었는지 남는다.
+idea: |
+  타깃: 20대 후반 직장인
+  톤: 친구가 알려주듯 빠르게
+  구조: 훅 → 문제 → 해결(제품) → CTA
+cta: "프로필 링크에서 확인"
+
+# script: AI 나레이션용 대본. 한 줄 = 한 호흡.
+# (narration.enabled 가 false 면 무시된다)
+script: |
+  아침마다 10분씩 날리고 있었어요.
+  이거 하나 바꿨더니 3분이면 끝납니다.
+  지금 프로필 링크에서 확인해보세요.
+
+# 자막에서 강조(다른 색)할 단어들
+keywords:
+  - 무료배송
+  - 3분
+
+# ── 자막 ────────────────────────────────────────────────────
+captions:
+  source: transcript   # transcript(내 말 그대로) · script(대본) · none
+  style: reels_bold    # reels_bold · pop_yellow · minimal · caption_box
+  max_chars: 14        # 한 줄 글자 수. 릴스는 12~16이 안전하다
+  max_lines: 2
+  min_duration: 0.7    # 한 장이 최소 이만큼은 떠 있어야 읽힌다
+  max_duration: 3.0
+  position: 0.72       # 0=화면 위 1=화면 아래. 인스타 UI를 피하려면 0.7 근처
+
+# ── AI 오디오 ───────────────────────────────────────────────
+narration:
+  enabled: false       # true 로 켜면 script 를 읽어 음성을 만든다
+  provider: edge       # edge(무료) · elevenlabs · openai · fish
+  voice: ko-KR-SunHiNeural
+  speed: 1.05
+  mode: mix            # replace(원본 음소거) · mix(원본 깔고 위에) · off
+  align: sequential    # sequential(순서대로) · clips(컷 시작에 맞춤)
+  original_gain_db: -14.0
+
+# 배경음악 (선택)
+# music: assets/bgm.mp3
+music_gain_db: -18.0
+
+# ── 컷 강도 ─────────────────────────────────────────────────
+# 컷이 너무 촘촘하면 max_pause 를 키우고, 늘어지면 줄인다.
+cut:
+  max_pause: 0.45      # 이보다 긴 정적은 이 길이로 줄인다
+  min_clip: 0.30       # 이보다 짧게 남는 조각은 버린다
+  trim_head_tail: true # 맨 앞뒤 빈 구간 정리
+  drop_retakes: true   # 같은 말 다시 한 경우 앞 테이크 버리기
+
+filler:
+  dead_air: 0.55       # 말하다 이만큼 멈추면 잘라낸다
+  soft_pause: 0.28     # '그…', '약간…' 을 필러로 볼 기준
+
+# 절대 자르면 안 되는 구간 (원본 기준 초). 제품 클로즈업 같은 것.
+# protect:
+#   - [3.0, 5.5]
+
+stt_model: medium      # tiny · base · small · medium · large-v3
+language: ko
