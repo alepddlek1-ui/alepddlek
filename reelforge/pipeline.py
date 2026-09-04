@@ -187,7 +187,8 @@ def build_plan(
             0,
             Caption(
                 brief.hook, 0.0, min(1.8, plan.duration or 1.8),
-                brief.captions.style, position=brief.captions.position,
+                brief.captions.style,
+                position=brief.captions.overlay_position, layer="overlay",
             ),
         )
     if brief.cta:
@@ -195,7 +196,8 @@ def build_plan(
         plan.captions.append(
             Caption(
                 brief.cta, max(0.0, end - 1.6), end,
-                brief.captions.style, position=brief.captions.position,
+                brief.captions.style,
+                position=brief.captions.overlay_position, layer="overlay",
             )
         )
     log(f"자막 {len(plan.captions)}장")
@@ -246,7 +248,6 @@ def export_all(
     out_dir: str | Path,
     *,
     projects_dir: str | Path | None = None,
-    template: dict | None = None,
     jump_cut_zoom: float = 0.0,
     log: Log = _noop,
 ) -> dict[str, str]:
@@ -272,7 +273,6 @@ def export_all(
             else 0.0
         ),
         jump_cut_zoom=jump_cut_zoom,
-        template=template,
     )
     results["capcut"] = str(folder)
     log(f"캡컷 프로젝트: {folder}")

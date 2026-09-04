@@ -33,7 +33,8 @@ class CaptionSpec:
     max_lines: int = 2
     min_duration: float = 0.7
     max_duration: float = 3.0
-    position: float = 0.72          # 화면 세로 위치 0=위 1=아래
+    position: float = 0.72          # 말자막 세로 위치 0=위 1=아래
+    overlay_position: float = 0.32  # 훅·CTA 위치. 말자막과 겹치지 않게 위쪽에
     keywords: list[str] = field(default_factory=list)
 
 

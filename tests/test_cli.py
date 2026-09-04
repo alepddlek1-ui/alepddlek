@@ -47,10 +47,10 @@ def test_a_command_is_required():
 
 def test_export_rebuilds_a_draft_from_an_edited_plan(tmp_path, capsys):
     """웹 편집기에서 컷을 되살리고 자막을 고친 뒤 다시 캡컷으로 보내는 경로."""
+    from conftest import write_png
     from reelforge.models import Caption, Clip, EditPlan
 
-    video = tmp_path / "take1.mp4"
-    video.write_bytes(b"fake")
+    video = write_png(tmp_path / "take1.png")
     plan = EditPlan(
         project="손본버전",
         clips=[Clip(str(video), 0.0, 2.0, 0.0)],
@@ -61,7 +61,6 @@ def test_export_rebuilds_a_draft_from_an_edited_plan(tmp_path, capsys):
     assert main([
         "export", str(plan_path),
         "--projects-dir", str(tmp_path / "Projects"),
-        "--no-template",
     ]) == 0
     draft = tmp_path / "Projects/손본버전/draft_content.json"
     assert draft.exists()

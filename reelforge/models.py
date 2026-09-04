@@ -107,6 +107,7 @@ class Caption:
     style: str = "default"
     emphasis: list[str] = field(default_factory=list)   # 강조할 단어들
     position: float = 0.72    # 화면 세로 위치. 0=맨 위, 1=맨 아래
+    layer: str = "caption"    # caption=말자막 / overlay=훅·CTA 같은 얹는 문구
 
     @property
     def duration(self) -> float:

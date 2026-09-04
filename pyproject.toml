@@ -11,6 +11,8 @@ requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = [
     "pyyaml>=6.0",
+    # 캡컷 draft 생성. 스키마가 버전마다 바뀌는 걸 대신 추적해준다.
+    "pycapcut>=0.0.3",
 ]
 
 [project.optional-dependencies]
@@ -20,6 +22,7 @@ stt = ["faster-whisper>=1.0.0"]
 tts = ["edge-tts>=6.1.0"]
 dev = ["pytest>=8.0"]
 all = ["faster-whisper>=1.0.0", "edge-tts>=6.1.0"]
+# pycapcut 은 필수 의존성이라 여기 없다 (pip install reelforge 로 같이 깔림)
 
 [project.scripts]
 reelforge = "reelforge.cli:main"

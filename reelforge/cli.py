@@ -2,7 +2,6 @@
 
     reelforge init 여름신상          새 브리프 만들기
     reelforge doctor                 환경 점검 (ffmpeg / whisper / 캡컷 경로)
-    reelforge calibrate              설치된 캡컷에서 스키마 학습
     reelforge build brief.yaml       분석 → 컷 → 자막 → AI오디오 → 캡컷 프로젝트
     reelforge render brief.yaml      ffmpeg 미리보기 mp4
     reelforge voices                 쓸 수 있는 TTS 목소리 목록
@@ -16,7 +15,6 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .export.capcut import calibrate as capcut_calibrate
 from .export.capcut.draft import default_projects_dir
 from .media import has_ffmpeg
 from .models import EditPlan
@@ -92,32 +90,37 @@ def cmd_doctor(args) -> int:
     except ImportError:
         print(_warn("edge-tts 없음 → pip install edge-tts"))
 
+    try:
+        import pycapcut  # noqa: F401
+
+        print(_ok("pycapcut (캡컷 프로젝트 생성)"))
+    except ImportError:
+        print(_bad("pycapcut 없음 → pip install pycapcut"))
+        status = 1
+
+    try:
+        import pymediainfo
+
+        if pymediainfo.MediaInfo.can_parse():
+            print(_ok("libmediainfo (pycapcut 이 영상 정보를 읽는 데 씁니다)"))
+        else:
+            print(_bad(
+                "libmediainfo 를 찾지 못했습니다 →\n"
+                "  macOS:   brew install libmediainfo\n"
+                "  Ubuntu:  sudo apt install libmediainfo0v5\n"
+                "  Windows: pymediainfo 휠에 포함되어 있습니다 (pip install -U pymediainfo)"
+            ))
+            status = 1
+    except ImportError:
+        print(_warn("pymediainfo 없음 → pycapcut 을 설치하면 같이 깔립니다"))
+
     projects = default_projects_dir()
     if projects:
         print(_ok(f"캡컷 프로젝트 폴더: {projects}"))
     else:
         print(_warn("캡컷 프로젝트 폴더를 못 찾음 → build 시 --projects-dir 로 지정하세요"))
 
-    template = capcut_calibrate.load(capcut_calibrate.default_template_path())
-    if template:
-        print(_ok(f"캡컷 스키마 학습됨 (version={template.get('version')})"))
-    else:
-        print(_warn("캡컷 스키마 미학습 → reelforge calibrate 권장"))
     return status
-
-
-def cmd_calibrate(args) -> int:
-    try:
-        folder = Path(args.draft) if args.draft else capcut_calibrate.find_latest_draft(args.projects_dir)
-        template = capcut_calibrate.learn(folder)
-    except capcut_calibrate.CalibrationError as exc:
-        print(_bad(str(exc)))
-        return 1
-    path = capcut_calibrate.save(template, args.out or capcut_calibrate.default_template_path())
-    print(_ok(f"학습 완료: {folder.name}"))
-    print(f"  version={template.get('version')}  new_version={template.get('new_version')}")
-    print(f"  저장: {path}")
-    return 0
 
 
 def cmd_build(args) -> int:
@@ -140,13 +143,9 @@ def cmd_build(args) -> int:
     )
     _print_removed(plan, limit=args.show_cuts)
 
-    template = None if args.no_template else capcut_calibrate.load(
-        args.template or capcut_calibrate.default_template_path()
-    )
     results = export_all(
         plan, brief, out_dir,
         projects_dir=args.projects_dir,
-        template=template,
         jump_cut_zoom=args.jump_cut_zoom,
         log=log,
     )
@@ -172,9 +171,6 @@ def cmd_export(args) -> int:
     from .export.srt import write_srt
 
     plan = EditPlan.load(args.plan)
-    template = None if args.no_template else capcut_calibrate.load(
-        args.template or capcut_calibrate.default_template_path()
-    )
     target = Path(args.projects_dir) if args.projects_dir else (
         default_projects_dir() or Path(args.plan).parent / "capcut"
     )
@@ -183,7 +179,6 @@ def cmd_export(args) -> int:
         style_name=args.style,
         mute_original=args.mute_original,
         jump_cut_zoom=args.jump_cut_zoom,
-        template=template,
     )
     print(_ok(f"캡컷 프로젝트: {folder}"))
     if plan.captions:
@@ -264,19 +259,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("doctor", help="환경 점검")
     p.set_defaults(func=cmd_doctor)
 
-    p = sub.add_parser("calibrate", help="설치된 캡컷에서 draft 스키마 학습")
-    p.add_argument("--draft", help="특정 프로젝트 폴더 지정")
-    p.add_argument("--projects-dir", help="캡컷 프로젝트 루트")
-    p.add_argument("--out", help="템플릿 저장 위치")
-    p.set_defaults(func=cmd_calibrate)
-
     p = sub.add_parser("build", help="브리프 → 캡컷 프로젝트")
     p.add_argument("brief")
     p.add_argument("--out", help="산출물 폴더")
     p.add_argument("--work-dir", help="캐시 폴더")
     p.add_argument("--projects-dir", help="캡컷 프로젝트 폴더 (미지정 시 자동 탐지)")
-    p.add_argument("--template", help="calibrate 로 만든 템플릿 json")
-    p.add_argument("--no-template", action="store_true", help="학습 템플릿 무시")
     p.add_argument("--no-cache", action="store_true", help="전사 캐시 무시하고 다시 분석")
     p.add_argument("--jump-cut-zoom", type=float, default=0.0,
                    help="점프컷 완화용 교대 확대 비율 (예: 0.03)")
@@ -289,8 +276,6 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--style", help="자막 스타일을 통째로 덮어쓰기")
     p.add_argument("--mute-original", action="store_true", help="원본 오디오 음소거")
     p.add_argument("--jump-cut-zoom", type=float, default=0.0)
-    p.add_argument("--template")
-    p.add_argument("--no-template", action="store_true")
     p.set_defaults(func=cmd_export)
 
     p = sub.add_parser("render", help="ffmpeg 미리보기 mp4")

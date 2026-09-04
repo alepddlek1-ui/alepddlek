@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from conftest import write_png
 from reelforge import pipeline
 from reelforge.media import MediaInfo
 from reelforge.models import Span, Utterance, Word
@@ -40,7 +41,6 @@ def fake_media(monkeypatch, tmp_path):
         return MediaInfo(str(path), duration=10.0, width=1080, height=1920, fps=30.0, has_audio=True)
 
     monkeypatch.setattr(pipeline, "probe", probe)
-    monkeypatch.setattr("reelforge.export.capcut.draft.probe", probe)
     monkeypatch.setattr(pipeline, "extract_audio", lambda src, dst, **kw: dst)
     monkeypatch.setattr(pipeline, "detect_silence", lambda *a, **kw: list(FAKE_SILENCES))
     monkeypatch.setattr(pipeline, "transcribe", lambda *a, **kw: list(FAKE_UTTERANCES))
@@ -49,8 +49,7 @@ def fake_media(monkeypatch, tmp_path):
 
 @pytest.fixture
 def brief(tmp_path):
-    video = tmp_path / "take1.mp4"
-    video.write_bytes(b"fake")
+    video = write_png(tmp_path / "take1.png")
     return from_dict(
         {
             "project": "스모크",
@@ -125,8 +124,7 @@ def test_export_writes_plan_srt_and_capcut_project(fake_media, brief, tmp_path):
 def test_everything_cut_away_raises_a_useful_error(fake_media, tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "detect_silence", lambda *a, **kw: [Span(0.0, 10.0, "silence")])
     monkeypatch.setattr(pipeline, "transcribe", lambda *a, **kw: [])
-    video = tmp_path / "take1.mp4"
-    video.write_bytes(b"fake")
+    video = write_png(tmp_path / "take1.png")
     brief = from_dict({"project": "빈영상", "footage": [str(video)]}, base_dir=tmp_path)
     with pytest.raises(ValueError, match="남는 구간이 없습니다"):
         pipeline.build_plan(brief, tmp_path / "work")
@@ -142,22 +140,24 @@ def test_ffmpeg_preview_command_is_well_formed(fake_media, brief, tmp_path):
 
 
 def test_caption_position_from_the_brief_is_applied(fake_media, tmp_path):
-    video = tmp_path / "take1.mp4"
-    video.write_bytes(b"fake")
+    video = write_png(tmp_path / "take1.png")
     brief = from_dict(
         {"project": "위치", "footage": [str(video)], "hook": "훅",
-         "captions": {"position": 0.4}},
+         "captions": {"position": 0.4, "overlay_position": 0.25}},
         base_dir=tmp_path,
     )
     plan = pipeline.build_plan(brief, tmp_path / "work")
-    assert all(c.position == 0.4 for c in plan.captions)
+    spoken = [c for c in plan.captions if c.layer == "caption"]
+    overlays = [c for c in plan.captions if c.layer == "overlay"]
+    assert spoken and all(c.position == 0.4 for c in spoken)
+    assert overlays and all(c.position == 0.25 for c in overlays)
 
 
 def test_removed_spans_remember_their_source(fake_media, brief, tmp_path):
     """웹 편집기에서 컷을 되살리려면 어느 영상의 구간인지 알아야 한다."""
     plan = pipeline.build_plan(brief, tmp_path / "work")
     assert plan.removed
-    assert all(span.source.endswith("take1.mp4") for span in plan.removed)
+    assert all(span.source.endswith("take1.png") for span in plan.removed)
 
     again = type(plan).load(plan.save(tmp_path / "plan.json"))
     assert again.removed[0].source == plan.removed[0].source

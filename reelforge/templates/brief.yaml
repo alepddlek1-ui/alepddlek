@@ -43,6 +43,7 @@ captions:
   min_duration: 0.7    # 한 장이 최소 이만큼은 떠 있어야 읽힌다
   max_duration: 3.0
   position: 0.72       # 0=화면 위 1=화면 아래. 인스타 UI를 피하려면 0.7 근처
+  overlay_position: 0.32  # 훅·CTA 위치. 말자막과 겹치지 않게 위쪽에 둔다
 
 # ── AI 오디오 ───────────────────────────────────────────────
 narration:

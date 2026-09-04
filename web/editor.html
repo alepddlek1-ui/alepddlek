@@ -537,6 +537,13 @@
               </div>
             </div>
             <div class="field">
+              <label for="f-cap-overlay">훅·CTA 위치 <span class="hint">말자막과 겹치지 않게 위쪽에</span></label>
+              <div class="slider-row">
+                <input type="range" id="f-cap-overlay" data-k="captions.overlay_position" min="0.1" max="0.9" step="0.01">
+                <output id="o-cap-overlay"></output>
+              </div>
+            </div>
+            <div class="field">
               <label for="f-cap-min">최소 노출 <span class="hint">초</span></label>
               <div class="slider-row">
                 <input type="range" id="f-cap-min" data-k="captions.min_duration" min="0.4" max="1.6" step="0.05">
@@ -815,7 +822,7 @@
     captions: {
       source: "transcript", style: "reels_bold",
       max_chars: 14, max_lines: 2,
-      min_duration: 0.7, max_duration: 3.0, position: 0.72,
+      min_duration: 0.7, max_duration: 3.0, position: 0.72, overlay_position: 0.32,
     },
     narration: {
       enabled: false, provider: "edge", voice: "ko-KR-SunHiNeural",
@@ -847,10 +854,12 @@
       { source: "raw/take1.mp4", source_start: 9.92, source_end: 14.40, timeline_start: 6.77, speed: 1 },
     ],
     captions: [
+      { text: "이거 모르면 계속 손해", start: 0.00, end: 1.80, style: "reels_bold", emphasis: ["손해"], position: 0.32, layer: "overlay" },
       { text: "아침마다 10분씩\n날리고 있었어요", start: 0.10, end: 2.30, style: "reels_bold", emphasis: [], position: 0.72 },
       { text: "이거 하나 바꿨더니", start: 2.40, end: 4.20, style: "reels_bold", emphasis: [], position: 0.72 },
       { text: "3분이면 끝납니다", start: 4.30, end: 6.40, style: "reels_bold", emphasis: ["3분"], position: 0.72 },
       { text: "지금 프로필 링크에서", start: 6.90, end: 9.10, style: "reels_bold", emphasis: [], position: 0.72 },
+      { text: "프로필 링크 확인", start: 7.60, end: 9.20, style: "reels_bold", emphasis: [], position: 0.32, layer: "overlay" },
     ],
     narration: [],
     music: null, music_gain_db: -18,
@@ -986,6 +995,7 @@
     push("  min_duration: " + b.captions.min_duration);
     push("  max_duration: " + b.captions.max_duration);
     push("  position: " + b.captions.position);
+    push("  overlay_position: " + b.captions.overlay_position);
     push("");
     push("# ── AI 오디오 ──");
     push("narration:");
@@ -1229,6 +1239,7 @@
       "o-cap-chars": brief.captions.max_chars + "자",
       "o-cap-lines": brief.captions.max_lines + "줄",
       "o-cap-pos": Math.round(brief.captions.position * 100) + "%",
+      "o-cap-overlay": Math.round(brief.captions.overlay_position * 100) + "%",
       "o-cap-min": brief.captions.min_duration.toFixed(2) + "s",
       "o-narr-speed": "×" + brief.narration.speed.toFixed(2),
       "o-cut-pause": brief.cut.max_pause.toFixed(2) + "s",
@@ -1339,6 +1350,7 @@
       style: cap.style,
       emphasis: cap.emphasis || [],
       position: cap.position,
+      layer: cap.layer || "caption",
       s: toSource(clips, cap.start),
       e: toSource(clips, cap.end),
     }));
@@ -1355,6 +1367,7 @@
         style: a.style,
         emphasis: a.emphasis,
         position: a.position,
+        layer: a.layer || "caption",
       };
     });
   }
@@ -1550,9 +1563,19 @@
       };
 
       const text = document.createElement("td");
+      if (cap.layer === "overlay") {
+        const badge = document.createElement("span");
+        badge.className = "tag retake";
+        badge.style.marginRight = "8px";
+        badge.textContent = "훅·CTA";
+        badge.title = "말자막 위에 얹히는 문구 — 캡컷에서 별도 트랙으로 들어갑니다";
+        text.append(badge);
+      }
       const area = document.createElement("textarea");
       area.className = "cap-text";
       area.rows = cap.text.includes("\n") ? 2 : 1;
+      area.style.display = cap.layer === "overlay" ? "inline-block" : "block";
+      area.style.width = cap.layer === "overlay" ? "calc(100% - 70px)" : "100%";
       area.value = cap.text;
       area.setAttribute("aria-label", "자막 " + (i + 1));
       area.addEventListener("input", () => {
@@ -1758,6 +1781,7 @@
       style: brief.captions.style,
       emphasis: [],
       position: brief.captions.position,
+      layer: "caption",
       s: toSource(plan.clips, start),
       e: toSource(plan.clips, start + 1.2),
     });
