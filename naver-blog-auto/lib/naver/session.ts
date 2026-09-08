@@ -44,7 +44,12 @@ export async function loginInteractive(): Promise<{ ok: boolean; message: string
 
   let browser = null;
   try {
-    const r = await newContext({ headless: false, useNaverSession: false });
+    // 로그인 창은 사람이 직접 쓰는 창이다 — 컴퓨터에 깔린 진짜 크롬/엣지를 먼저 시도한다.
+    const r = await newContext({
+      headless: false,
+      useNaverSession: false,
+      preferSystemBrowser: true,
+    });
     browser = r.browser;
     const context = r.context;
     const page = await context.newPage();
