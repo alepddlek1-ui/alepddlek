@@ -13,6 +13,35 @@ import { getSettings } from "@/lib/settings";
  *    덤으로, argv 에 사용자 입력이 없으니 윈도우에서 shell:true 를 써도 안전하다.
  */
 
+/**
+ * claude CLI 가 내는 영어 메시지를 사용자가 읽을 수 있는 말로 바꾼다.
+ *
+ * ⚠️ 8-6 — 에러 원문을 사용자에게 그대로 넘기지 마라.
+ *    "무슨 뜻인지 한 줄 + 어떻게 하면 되는지 한 줄" 로 바꿔야 한다.
+ *    실제로 사용자가 `Failed to authenticate: OAuth session expired and could not be
+ *    refreshed` 를 받고 앱이 고장난 줄 알았다. 실제로는 claude 로그인이 풀린 것뿐이었다.
+ */
+export function friendlyClaudeError(raw: string): string {
+  const t = raw ?? "";
+  if (/OAuth session expired|Failed to authenticate|Please run .?claude login|not logged in|Invalid API key|authentication_error/i.test(t)) {
+    return "AI 프로그램 로그인이 풀렸습니다. 명령어를 입력하는 창을 새로 열어 claude 를 실행하고 다시 로그인한 뒤, 이 버튼을 한 번 더 눌러주세요.";
+  }
+  if (/session limit|usage limit|rate.?limit|quota|429/i.test(t)) {
+    const when = t.match(/resets?\s+([^\n.]{1,40})/i);
+    return `오늘 쓸 수 있는 AI 사용량을 다 썼습니다.${when ? ` ${when[1].trim()}쯤 다시 쓸 수 있습니다.` : " 잠시 뒤에 다시 시도해 주세요."}`;
+  }
+  if (/ENOENT|not recognized|command not found|spawn .* failed/i.test(t)) {
+    return "AI 를 실행하는 프로그램을 찾지 못했습니다. claude 가 설치돼 있는지 확인해 주세요.";
+  }
+  if (/ECONNRESET|ETIMEDOUT|ENOTFOUND|network|fetch failed/i.test(t)) {
+    return "인터넷 연결이 잠깐 끊긴 것 같습니다. 잠시 뒤 다시 시도해 주세요.";
+  }
+  if (/overloaded|529|503/i.test(t)) {
+    return "AI 쪽이 지금 많이 붐빕니다. 잠시 뒤 다시 시도해 주세요.";
+  }
+  return t;
+}
+
 type Ok = { ok: true; text: string };
 type Err = { ok: false; error: string };
 export type ClaudeResult = Ok | Err;
@@ -100,14 +129,11 @@ export async function runClaude(
       p.stdout.on("data", (d) => (out += d.toString()));
       p.stderr.on("data", (d) => (err += d.toString()));
       p.on("error", (e) =>
-        done({
-          ok: false,
-          error: `claude 를 실행하지 못했습니다: ${e.message}`,
-        }),
+        done({ ok: false, error: friendlyClaudeError(e.message) }),
       );
       p.on("close", (code) => {
         if (!out.trim()) {
-          done({ ok: false, error: err.trim() || `claude 가 코드 ${code} 로 끝났습니다.` });
+          done({ ok: false, error: friendlyClaudeError(err.trim()) || `claude 가 코드 ${code} 로 끝났습니다.` });
           return;
         }
         try {
@@ -120,7 +146,7 @@ export async function runClaude(
           // ⚠️ 실제 응답에는 usage, modelUsage, permission_denials 등 필드가 20개 넘게 더 들어 있다.
           //    정상이다. .result 만 읽으면 된다.
           if (j.is_error) {
-            done({ ok: false, error: String(j.result ?? j.error ?? "claude 오류") });
+            done({ ok: false, error: friendlyClaudeError(String(j.result ?? j.error ?? "claude 오류")) });
             return;
           }
           if (typeof j.result === "string") {

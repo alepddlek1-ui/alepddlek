@@ -9,6 +9,7 @@ const steps: [string, string[], Record<string, string>][] = [
   ["셀렉터 부분일치 최소 재현 (7-1, 7-2)", ["scripts/test-selectors.mts"], {}],
   ["수집 필터 (6-4)", ["scripts/test-trends.mts"], {}],
   ["로컬 날짜 집계 + 발행 가드 (7-22)", ["scripts/test-guards.mts"], { TZ: "Asia/Seoul" }],
+  ["에러 문구 한국어화 (8-6)", ["scripts/test-errors.mts"], {}],
   ["브라우저 정체 일치 (UA·자동화 표식)", ["scripts/test-browser.mts"], {}],
   ["에디터 로컬 하네스 (9장 6.5-a)", ["scripts/harness.mts"], {}],
 ];
