@@ -7,7 +7,7 @@ import { VISIBILITY_LABEL } from "@/lib/settingsShared";
 import type { ImageStyle, JobMode, PhotoSource, Section } from "@/lib/types";
 
 type Status = {
-  claude: { ok: boolean; version?: string; error?: string };
+  claude: { ok: boolean; version?: string; installed: boolean; reason?: string };
   session: { ok: boolean; blogId?: string; reason?: string };
   cloudflare: { configured: boolean };
   settings: Settings;
@@ -105,18 +105,54 @@ export default function Page() {
         const j = JSON.parse((e as MessageEvent).data);
         setJobs((prev) => prev.map((p) => (p.id === id ? { ...p, ...j } : p)));
       });
-      src.addEventListener("end", () => {
+      const finish = () => {
         src.close();
-        es.current = null;
+        if (es.current === src) es.current = null;
         setStarting(false);
         load();
         openJob(id);
-      });
+      };
+      src.addEventListener("end", finish);
+      /**
+       * ⚠️ 실시간 연결이 끊기면 끝났다는 신호도 같이 사라진다.
+       *    그러면 작업은 이미 실패했는데 버튼만 "만드는 중…" 으로 남는다(실제로 발생).
+       *    끊김도 종료로 취급하고, 아래 폴링으로 진짜 상태를 다시 확인한다.
+       */
+      src.onerror = () => {
+        if (src.readyState === EventSource.CLOSED) finish();
+      };
     },
     [load, openJob],
   );
 
   useEffect(() => () => es.current?.close(), []);
+
+  /**
+   * 안전망 — 실시간 연결에만 기대지 않는다.
+   * "만드는 중" 인 동안 3초마다 실제 작업 상태를 확인해서, 끝났으면 버튼을 풀어준다.
+   * 실패로 끝났으면 그 이유를 화면에 그대로 띄운다(터미널을 보게 만들지 않는다).
+   */
+  useEffect(() => {
+    if (!starting || selected === null) return;
+    const t = setInterval(async () => {
+      try {
+        const d = (await fetch(`/api/jobs/${selected}`).then((r) => r.json())) as Detail;
+        if (!d.job) return;
+        if (["done", "failed", "canceled"].includes(d.job.status)) {
+          setStarting(false);
+          setDetail(d);
+          setLiveLogs(d.logs ?? []);
+          if (d.job.status === "failed") setMsg(d.job.error ?? "작업이 끝나지 못했습니다.");
+          es.current?.close();
+          es.current = null;
+          load();
+        }
+      } catch {
+        /* 잠깐 못 읽는 건 무시하고 다음 차례에 다시 본다 */
+      }
+    }, 3000);
+    return () => clearInterval(t);
+  }, [starting, selected, load]);
 
   // 새로고침해도 진행 중인 작업을 이어서 본다
   useEffect(() => {
@@ -246,7 +282,7 @@ export default function Page() {
           <div className="rail-sub">{rail.sub}</div>
         </div>
         <div className="dots">
-          <span className={`dot ${status?.claude.ok ? "on" : "off"}`} title={status?.claude.version ?? status?.claude.error ?? ""}>
+          <span className={`dot ${status?.claude.ok ? "on" : "off"}`} title={status?.claude.reason ?? status?.claude.version ?? ""}>
             <i />
             AI
           </span>
@@ -403,7 +439,28 @@ export default function Page() {
               {" 설정에서 바꿀 수 있습니다."}
             </p>
           )}
-          {!status?.claude.ok && <p className="warn">AI 를 실행하는 프로그램이 준비되지 않았습니다.</p>}
+          {status && !status.claude.ok && (
+            <p className="warn">
+              {status.claude.reason ?? "AI 를 실행하는 프로그램이 준비되지 않았습니다."}
+              {status.claude.installed && (
+                <>
+                  {" "}
+                  <button
+                    className="ghost"
+                    style={{ marginTop: 6, fontSize: 12, padding: "4px 10px" }}
+                    onClick={async () => {
+                      setMsg("AI 준비 상태를 다시 확인합니다…");
+                      await fetch("/api/status?refresh=1");
+                      const s2 = await load();
+                      setMsg(s2.claude.ok ? "AI 준비됐습니다." : (s2.claude.reason ?? ""));
+                    }}
+                  >
+                    다시 확인
+                  </button>
+                </>
+              )}
+            </p>
+          )}
           {!status?.session.ok && <p className="note" style={{ marginTop: 8 }}>네이버 로그인을 아직 안 했습니다. 글은 만들 수 있지만 올리지는 못합니다.</p>}
         </div>
 

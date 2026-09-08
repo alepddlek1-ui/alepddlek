@@ -68,17 +68,22 @@ function release() {
 
 const isWin = process.platform === "win32";
 
-function spawnClaude(args: string[], bin = CONFIG.claudeBin) {
+function spawnClaude(args: string[], bin?: string) {
+  // ⚠️ 실행 파일 경로는 **부를 때** 읽는다. 모듈을 불러오는 시점에 굳혀버리면
+  //    나중에 바뀐 설정이 반영되지 않는다.
+  const exe = bin ?? process.env.CLAUDE_BIN ?? CONFIG.claudeBin;
   // ⚠️ 윈도우: npm 전역 바이너리는 claude.cmd 셸 심이라 spawn 이 직접 실행하지 못하고
   //    ENOENT 로 죽는다. shell:true 로 우회한다(프롬프트가 stdin 이라 안전).
-  return spawn(bin, args, { shell: isWin, stdio: ["pipe", "pipe", "pipe"] });
+  return spawn(exe, args, { shell: isWin, stdio: ["pipe", "pipe", "pipe"] });
 }
 
 export async function runClaude(
   prompt: string,
-  opts?: { images?: string[]; system?: string },
+  opts?: { images?: string[]; system?: string; probe?: boolean },
 ): Promise<ClaudeResult> {
   const s = getSettings();
+  // 상태 확인용 호출(probe)은 짧게 끊는다 — 화면이 이것 때문에 오래 멈추면 안 된다.
+  const timeoutSec = opts?.probe ? Math.min(45, s.claudeTimeoutSec) : s.claudeTimeoutSec;
   await acquire(s.claudeConcurrency);
   try {
     // 이미지 첨부: 프롬프트 끝에 @절대경로 를 공백으로 붙이면 claude 가 읽는다(프로젝트 밖 경로도 됨).
@@ -121,9 +126,9 @@ export async function runClaude(
           } catch {
             /* 이미 죽었으면 무시 */
           }
-          done({ ok: false, error: `claude 응답이 ${s.claudeTimeoutSec}초 안에 오지 않았습니다.` });
+          done({ ok: false, error: `AI 응답이 ${timeoutSec}초 안에 오지 않았습니다.` });
         },
-        s.claudeTimeoutSec * 1000,
+        timeoutSec * 1000,
       );
 
       p.stdout.on("data", (d) => (out += d.toString()));
@@ -234,7 +239,7 @@ export async function runClaudeJson<S extends z.ZodTypeAny>(
   return { ok: false, error: lastError };
 }
 
-export async function checkClaude(): Promise<{ ok: boolean; version?: string; error?: string }> {
+async function claudeVersion(): Promise<{ ok: boolean; version?: string; error?: string }> {
   return new Promise((resolve) => {
     let p: ReturnType<typeof spawnClaude>;
     try {
@@ -266,4 +271,58 @@ export async function checkClaude(): Promise<{ ok: boolean; version?: string; er
       else resolve({ ok: false, error: err.trim() || "claude 를 찾지 못했습니다." });
     });
   });
+}
+
+/**
+ * ⚠️ `claude --version` 은 **로그인하지 않아도 성공한다.**
+ *    그래서 버전만 보고 "AI 준비됨"(초록불)이라고 표시하면 화면이 거짓말을 한다.
+ *    실제로 그 상태에서 사용자가 버튼을 눌렀고, 1분 넘게 돌다가 글감 단계에서
+ *    "Failed to authenticate: OAuth session expired" 로 죽었다.
+ *    실패를 파이프라인 한복판이 아니라 **누르기 전에** 알려줘야 한다.
+ *
+ *    그래서 아주 짧은 프롬프트를 한 번 던져 실제로 대답하는지까지 본다.
+ *    매번 하면 낭비라 세션 검증과 같은 방식으로 5분 캐시를 둔다.
+ */
+export type ClaudeState = {
+  ok: boolean;
+  version?: string;
+  /** 설치는 됐는데 로그인만 안 된 상태를 구분한다 */
+  installed: boolean;
+  reason?: string;
+  checkedAt: number;
+};
+
+let claudeCache: ClaudeState | null = null;
+const CLAUDE_TTL_MS = 5 * 60 * 1000;
+
+export function invalidateClaudeCache() {
+  claudeCache = null;
+}
+
+export async function checkClaude(force = false): Promise<ClaudeState> {
+  if (!force && claudeCache && Date.now() - claudeCache.checkedAt < CLAUDE_TTL_MS) {
+    return claudeCache;
+  }
+
+  const v = await claudeVersion();
+  if (!v.ok) {
+    claudeCache = {
+      ok: false,
+      installed: false,
+      reason: friendlyClaudeError(v.error ?? "") || "AI 를 실행하는 프로그램을 찾지 못했습니다.",
+      checkedAt: Date.now(),
+    };
+    return claudeCache;
+  }
+
+  // 설치는 확인됐다. 이제 "실제로 대답하는지"를 본다.
+  const probe = await runClaude("1+1 은? 숫자만 답하라.", { probe: true });
+  claudeCache = {
+    ok: probe.ok,
+    version: v.version,
+    installed: true,
+    reason: probe.ok ? undefined : probe.error,
+    checkedAt: Date.now(),
+  };
+  return claudeCache;
 }
