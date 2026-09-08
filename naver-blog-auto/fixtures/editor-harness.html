@@ -1,0 +1,18 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>에디터 로컬 하네스 (9장 6.5-a)</title>
+<!--
+  ⚠️ 이건 셀렉터를 검증하는 것이 아니라 **입력 순서**를 검증하는 하네스다(6.5-a).
+     7장 셀렉터는 로그인 전에는 검증할 수 없다. 그대로 쓴다.
+
+  ⚠️ 하네스의 한계 — 모르면 헛다리를 짚는다:
+     - 텍스트 입력을 가로채 span 을 직접 붙이지 않는다. 캐럿과 싸우면 한글 순서가 뒤섞인다.
+       네이티브 contenteditable 이 처리하게 두고 결과만 읽는다.
+     - 형광펜을 execCommand('hiliteColor') 로 흉내 내면 접힌 캐럿에서 실제 에디터와 다르게 동작한다.
+       하네스 결과를 실제 에디터의 증거로 쓰지 않는다. 그래서 여기서는 "버튼이 눌린 횟수"만 센다.
+-->
+<style>
+  html,body{margin:0;height:100%;font-family:system-ui,sans-serif}
+  iframe{width:100%;height:100%;border:0;display:block}
+</style>
+<iframe id="mainFrame" src="./editor-inner.html"></iframe>
