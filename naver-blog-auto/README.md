@@ -148,8 +148,13 @@ npm run selftest
 ### 그 밖에
 
 - `npm run build` 를 한 뒤에 `npm run dev` 가 500 을 내면 `.next` 폴더를 지우고 다시 켜세요.
-- 윈도우에서 설치가 실패하면 Node **LTS(짝수 버전)** 로 맞추거나 `npm rebuild better-sqlite3` 를 해보세요.
-  (Visual Studio Build Tools 가 필요할 수 있습니다.)
+- `npm install` 이 빨간 글씨를 잔뜩 내고 끝나면, 데이터베이스 부품이 컴퓨터에 맞는 완제품이 없어
+  직접 조립하려다 실패한 것입니다. 아래 한 줄로 최신 완제품을 받으면 됩니다.
+  ```
+  npm install better-sqlite3@12
+  ```
+  (실측: `better-sqlite3` 11.x 는 **윈도우 + Node 24** 용 완제품 파일이 없어 404 가 나고,
+   12.x 에는 있습니다. 그래서 이 앱은 12 이상을 씁니다.)
 - 브라우저를 자동으로 내려받지 못하는 환경이면 `.env.local` 의 `CHROMIUM_PATH` 에
   이미 깔린 크롬 경로를 적으세요.
 
