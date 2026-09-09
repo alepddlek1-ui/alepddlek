@@ -14,6 +14,7 @@ const steps: [string, string[], Record<string, string>][] = [
   ["브라우저 정체 일치 (UA·자동화 표식)", ["scripts/test-browser.mts"], {}],
   ["에디터 로컬 하네스 (9장 6.5-a)", ["scripts/harness.mts"], {}],
   ["본문 셀렉터가 달라도 본문에 들어가는지 (7-26)", ["scripts/test-body-fallback.mts"], {}],
+  ["화면 판정이 틀려도 본문에 들어가는지 (7-26)", ["scripts/test-body-probe.mts"], {}],
 ];
 
 let failed = 0;

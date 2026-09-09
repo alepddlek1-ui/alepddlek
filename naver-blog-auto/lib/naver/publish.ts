@@ -269,10 +269,81 @@ async function exitToNewParagraph(page: Page, frame: Frame, log?: Log) {
 // 포커스 확인
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * ⚠️ 본문에 들어왔는지를 **실제로 한 글자 쳐보고** 판정한다.
+ *
+ *    왜: document.activeElement 로 판정하면 에디터 구조에 따라 틀린다.
+ *    실측(사용자 화면) — 스크린샷에는 커서가 분명히 본문에 내려와 있는데도
+ *    activeElement 판정은 "본문 아님" 으로 나와 발행이 중단됐다.
+ *    (제목은 정상적으로 제목 칸에 들어간 상태였다)
+ *
+ *    화면 상태를 읽는 대신 결과를 보면 구조와 무관하게 맞는다:
+ *    한 글자를 치고 → 제목이 길어졌으면 제목에 있는 것(7-26 의 그 상황),
+ *    제목은 그대로인데 다른 곳이 길어졌으면 본문에 있는 것.
+ *    친 글자는 반드시 지운다.
+ */
+async function probeBodyFocus(page: Page, frame: Frame): Promise<boolean> {
+  const read = async () =>
+    frame
+      .evaluate(() => {
+        /**
+         * ⚠️ textContent 로 세면 안 된다 — **shadow DOM 안의 글자를 못 본다.**
+         *    실측(하네스): 본문이 shadow DOM 안에 있을 때 글자가 분명히 들어갔는데도
+         *    길이가 그대로라, "본문에 못 들어갔다"고 오판하고 확인용 글자도 안 지워져
+         *    "가가가" 가 쌓였다. 껍데기 안쪽까지 훑어야 한다.
+         */
+        const deepLen = (node: Node): number => {
+          let n = 0;
+          const stack: Node[] = [node];
+          while (stack.length) {
+            const cur = stack.pop()!;
+            if (cur.nodeType === 3) {
+              n += (cur as Text).data.length;
+              continue;
+            }
+            const sr = (cur as Element).shadowRoot;
+            if (sr) stack.push(sr);
+            cur.childNodes.forEach((c) => stack.push(c));
+          }
+          return n;
+        };
+        const titleEl = document.querySelector(
+          ".se-section-documentTitle, .se-documentTitle, .se-title-text",
+        );
+        const all = document.querySelector(".se-content") ?? document.body;
+        return {
+          title: titleEl ? deepLen(titleEl) : 0,
+          all: all ? deepLen(all) : 0,
+        };
+      })
+      .catch(() => null);
+
+  const before = await read();
+  if (!before) return false;
+
+  await page.keyboard.type("가", { delay: 10 });
+  await page.waitForTimeout(250);
+  const after = await read();
+
+  // 친 글자는 어디에 들어갔든 지운다.
+  if (after && after.all > before.all) {
+    await page.keyboard.press("Backspace");
+    await page.waitForTimeout(200);
+  }
+  if (!after) return false;
+
+  if (after.title > before.title) return false; // 제목으로 샜다
+  return after.all > before.all; // 제목 밖 어딘가에 들어갔다 = 본문
+}
+
 /** 지금 커서가 "제목 칸"에 있는지 — 7-26 을 잡는 신호 */
 async function focusInfo(frame: Frame) {
   return frame.evaluate(() => {
-    const a = document.activeElement as HTMLElement | null;
+    // 껍데기(shadow host)가 아니라 그 안의 진짜 포커스를 찾아 들어간다.
+    let a = document.activeElement as HTMLElement | null;
+    while (a && a.shadowRoot && a.shadowRoot.activeElement) {
+      a = a.shadowRoot.activeElement as HTMLElement;
+    }
     if (!a) return { inTitle: false, editable: false, cls: "", tag: "" };
     const inTitle = !!a.closest(".se-section-documentTitle, .se-documentTitle, .se-title-text");
     return {
@@ -708,10 +779,12 @@ export async function publishPost(args: PublishArgs): Promise<PublishResult> {
      *    → Enter 로 한 번 더 시도하고, 그래도 본문 포커스가 확인되지 않으면
      *      스크린샷을 남기고 즉시 실패 처리한다. 조용히 진행하는 것이 최악이다.
      */
-    const inBody = async () => {
+    // 1차는 빠른 화면 상태 검사, 최종 판정은 실제로 쳐보는 검사로 한다.
+    const looksInBody = async () => {
       const f = await focusInfo(frame);
       return !f.inTitle && f.editable;
     };
+    const inBody = async () => (await looksInBody()) || (await probeBodyFocus(page, frame));
 
     // ⓐ 명세의 본문 후보를 위에서부터
     const body = await firstVisible(frame, EDITOR.body, 2000);
