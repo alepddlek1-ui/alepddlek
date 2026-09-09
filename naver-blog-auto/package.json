@@ -8,7 +8,8 @@
     "start": "next start -p 4123",
     "check": "tsc --noEmit",
     "harness": "tsx scripts/harness.mts",
-    "selftest": "tsx scripts/selftest.mts"
+    "selftest": "tsx scripts/selftest.mts",
+    "doctor": "tsx scripts/doctor.mts"
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",

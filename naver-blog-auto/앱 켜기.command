@@ -14,5 +14,13 @@ echo "[2/2] 앱을 켭니다. 잠시 뒤 브라우저가 저절로 열립니다.
 echo "이 창은 닫지 마세요. 닫으면 앱이 꺼집니다."
 echo ""
 
+echo "준비 상태를 점검합니다..."
+if ! npm run doctor; then
+  echo ""
+  echo "위에 적힌 것을 먼저 해주세요. 그다음 이 파일을 다시 실행하시면 됩니다."
+  read -r _
+  exit 1
+fi
+
 ( sleep 8; (command -v open >/dev/null && open http://localhost:4123) || (command -v xdg-open >/dev/null && xdg-open http://localhost:4123) ) &
 npm run dev

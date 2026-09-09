@@ -23,6 +23,17 @@ echo [2/2] 앱을 켭니다. 잠시 뒤 브라우저가 저절로 열립니다.
 echo 이 창은 닫지 마세요. 닫으면 앱이 꺼집니다.
 echo.
 
+echo.
+echo 준비 상태를 점검합니다...
+call npm run doctor
+if errorlevel 1 (
+  echo.
+  echo 위에 적힌 것을 먼저 해주세요. 그다음 이 파일을 다시 더블클릭하시면 됩니다.
+  echo.
+  pause
+  exit /b 1
+)
+
 start "" cmd /c "timeout /t 8 >nul & start http://localhost:4123"
 call npm run dev
 

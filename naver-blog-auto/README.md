@@ -143,6 +143,15 @@ cp env.sample .env.local      # 윈도우: copy env.sample .env.local
 
 ---
 
+## 뭔가 안 될 때 — 먼저 이것부터
+
+```bash
+npm run doctor
+```
+
+Node · 필요한 프로그램 · AI 로그인 · 네이버 로그인 · 앱 자리(포트)를 한 번에 재고,
+**지금 하실 일 하나만** 알려줍니다. 앱을 켤 때도 자동으로 돌아갑니다.
+
 ## 스스로 확인해보기 (계정 없이)
 
 ```bash
