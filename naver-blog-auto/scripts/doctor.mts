@@ -36,6 +36,33 @@ rows.push({
 // ③ AI (설치 + 실제 로그인까지)
 const claude = await checkClaude(true);
 const isWin = process.platform === "win32";
+
+/**
+ * ⚠️ 안내문의 자리표시자를 그대로 넣는 일이 실제로 일어난다.
+ *    사용자가 setx CLAUDE_CODE_OAUTH_TOKEN "여기에붙여넣기" 를 글자 그대로 실행해서
+ *    claude 가 "non-ASCII character at character 1 (7 characters)" 를 냈다.
+ *    에러 원문만 보면 무슨 소린지 알 수 없으므로 여기서 짚어준다.
+ */
+const rawToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+if (rawToken && !/^sk-ant-[\x20-\x7e]+$/.test(rawToken)) {
+  rows.push({
+    name: "AI 토큰",
+    ok: false,
+    detail: `값이 이상합니다 ("${rawToken.slice(0, 20)}")`,
+    todo: [
+      "AI 토큰 자리에 엉뚱한 값이 들어가 있습니다. 안내문의 예시 글자를 그대로 넣으면 이렇게 됩니다.",
+      "",
+      isWin
+        ? '  1) reg delete "HKCU\\Environment" /v CLAUDE_CODE_OAUTH_TOKEN /f'
+        : "  1) ~/.zshrc 에서 CLAUDE_CODE_OAUTH_TOKEN 줄을 지우세요",
+      "  2) 검은 창을 전부 닫고 새로 여세요",
+      "  3) claude setup-token  → sk-ant-oat01- 로 시작하는 긴 글자를 복사",
+      isWin
+        ? "  4) setx CLAUDE_CODE_OAUTH_TOKEN \"복사한글자\"  ← 따옴표 안을 진짜 글자로 바꿔야 합니다"
+        : '  4) export CLAUDE_CODE_OAUTH_TOKEN="복사한글자"  ← 진짜 글자로 바꿔야 합니다',
+    ].join("\n  "),
+  });
+}
 // 화면(버튼) 기준이 아니라 **이 창에서 칠 명령** 기준으로 알려준다.
 const loginTodo = [
   "AI 로그인이 안 돼 있습니다. 아래를 순서대로 하시면 됩니다.",
