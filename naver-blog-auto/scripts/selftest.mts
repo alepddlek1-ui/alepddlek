@@ -13,6 +13,7 @@ const steps: [string, string[], Record<string, string>][] = [
   ["AI 준비 상태를 정직하게 표시", ["scripts/test-claude-state.mts"], {}],
   ["브라우저 정체 일치 (UA·자동화 표식)", ["scripts/test-browser.mts"], {}],
   ["에디터 로컬 하네스 (9장 6.5-a)", ["scripts/harness.mts"], {}],
+  ["본문 셀렉터가 달라도 본문에 들어가는지 (7-26)", ["scripts/test-body-fallback.mts"], {}],
 ];
 
 let failed = 0;

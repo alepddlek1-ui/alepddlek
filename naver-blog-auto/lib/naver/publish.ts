@@ -285,6 +285,68 @@ async function focusInfo(frame: Frame) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// 진단 덤프 — 명세에 없는 환경을 만났을 때 "무엇이 실제로 있는지" 잰다
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * ⚠️ 9장 6.5-b / 8-5 — 셀렉터가 안 맞으면 추측하지 말고 살아 있는 DOM 에 물어본다.
+ *    이 앱을 만든 사람은 사용자의 네이버 화면을 볼 수 없으므로, 앱이 대신 재서 파일로 남긴다.
+ *    여기서 나온 값을 selectors.ts 후보 배열 **앞에** 추가하면 된다(기존 값은 지우지 않는다).
+ */
+async function dumpEditor(page: Page, frame: Frame) {
+  const perCandidate: Record<string, { count: number; visible: number }> = {};
+  for (const sel of [...EDITOR.body, ...EDITOR.title]) {
+    let count = 0;
+    let visible = 0;
+    try {
+      const loc = frame.locator(sel);
+      count = await loc.count();
+      for (let i = 0; i < Math.min(count, 5); i++) {
+        if (await loc.nth(i).isVisible({ timeout: 300 }).catch(() => false)) visible++;
+      }
+    } catch {
+      /* 없는 셀렉터는 0 으로 둔다 */
+    }
+    perCandidate[sel] = { count, visible };
+  }
+
+  const inFrame = await frame
+    .evaluate(() => {
+      const box = (e: Element) => {
+        const r = e.getBoundingClientRect();
+        return { w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.x), y: Math.round(r.y) };
+      };
+      const a = document.activeElement as HTMLElement | null;
+      return {
+        url: location.href,
+        activeElement: a
+          ? { tag: a.tagName, cls: String(a.className), editable: a.isContentEditable }
+          : null,
+        // 글을 칠 수 있는 칸을 전부 훑는다 — 여기에 본문 칸이 반드시 들어 있다
+        editables: [...document.querySelectorAll("[contenteditable='true'], textarea, input[type='text']")]
+          .map((e) => ({ tag: e.tagName, cls: String(e.className), ...box(e) }))
+          .filter((e) => e.w > 0 && e.h > 0)
+          .slice(0, 25),
+        components: [...document.querySelectorAll(".se-content .se-component")]
+          .map((c) => String(c.className))
+          .slice(0, 20),
+        sections: [...document.querySelectorAll("[class*='se-section']")]
+          .map((c) => String(c.className))
+          .slice(0, 20),
+      };
+    })
+    .catch((e) => ({ error: String(e) }));
+
+  return {
+    when: new Date().toISOString(),
+    pageUrl: page.url(),
+    usedIframe: frame !== page.mainFrame(),
+    candidates: perCandidate,
+    inFrame,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
 // 서식
 // ─────────────────────────────────────────────────────────────
 
@@ -646,28 +708,80 @@ export async function publishPost(args: PublishArgs): Promise<PublishResult> {
      *    → Enter 로 한 번 더 시도하고, 그래도 본문 포커스가 확인되지 않으면
      *      스크린샷을 남기고 즉시 실패 처리한다. 조용히 진행하는 것이 최악이다.
      */
-    let body = await firstVisible(frame, EDITOR.body, 2000);
+    const inBody = async () => {
+      const f = await focusInfo(frame);
+      return !f.inTitle && f.editable;
+    };
+
+    // ⓐ 명세의 본문 후보를 위에서부터
+    const body = await firstVisible(frame, EDITOR.body, 2000);
     if (body) {
       await body.click({ timeout: 5000 }).catch(() => {});
       await page.waitForTimeout(400);
     }
-    let focus = await focusInfo(frame);
-    if (focus.inTitle || !focus.editable) {
+
+    // ⓑ 제목에서 Enter
+    if (!(await inBody())) {
       await page.keyboard.press("Enter");
       await page.waitForTimeout(600);
-      body = await firstVisible(frame, EDITOR.body, 2000);
-      if (body) {
-        await body.click({ timeout: 5000 }).catch(() => {});
+      const again = await firstVisible(frame, EDITOR.body, 1500);
+      if (again) {
+        await again.click({ timeout: 5000 }).catch(() => {});
         await page.waitForTimeout(400);
       }
-      focus = await focusInfo(frame);
     }
-    if (focus.inTitle || !focus.editable) {
+
+    // ⓒ 본문 영역 안쪽을 좌표로 직접 클릭한다.
+    //    셀렉터가 환경마다 다를 수 있으므로, 마지막 수단으로 "제목 아래 빈 곳"을 누른다.
+    if (!(await inBody())) {
+      const contentBox = await frame
+        .locator(EDITOR.content[0])
+        .first()
+        .boundingBox({ timeout: 800 })
+        .catch(() => null);
+      if (contentBox) {
+        await page.mouse.click(
+          contentBox.x + Math.min(contentBox.width / 2, 300),
+          contentBox.y + Math.min(60, contentBox.height / 2),
+        );
+        await page.waitForTimeout(500);
+      }
+    }
+
+    // ⓓ 그래도 안 되면 화면에서 "글을 칠 수 있는 칸" 중 제목이 아닌 첫 번째를 직접 누른다
+    if (!(await inBody())) {
+      const editable = frame.locator("[contenteditable='true']");
+      const n = await editable.count().catch(() => 0);
+      for (let i = 0; i < Math.min(n, 8); i++) {
+        const el = editable.nth(i);
+        const isTitle = await el
+          .evaluate((e) => !!e.closest(".se-section-documentTitle, .se-documentTitle, .se-title-text"))
+          .catch(() => true);
+        if (isTitle) continue;
+        await el.click({ timeout: 3000 }).catch(() => {});
+        await page.waitForTimeout(300);
+        if (await inBody()) break;
+      }
+    }
+
+    /**
+     * ⚠️ 7-26 — 여기까지 와서도 본문 포커스가 확인되지 않으면 **절대 그냥 진행하지 않는다.**
+     *    그대로 치면 글 전체가 제목 칸에 들어가고, 에러도 안 난다.
+     *    대신 지금 화면에 무엇이 있는지를 파일로 남긴다 — 그래야 다음에 고칠 수 있다(8-5).
+     */
+    if (!(await inBody())) {
       await page.screenshot({ path: shotPath }).catch(() => {});
+      const diagPath = shotPath.replace(/\.png$/, "-진단.json");
+      try {
+        fs.writeFileSync(diagPath, JSON.stringify(await dumpEditor(page, frame), null, 2));
+      } catch {
+        /* 진단 저장 실패로 결과를 바꾸지 않는다 */
+      }
+      log(`글쓰기 화면을 재서 기록해 두었습니다: ${diagPath}`, "warn");
       return {
         status: "failed",
         screenshot: shotPath,
-        note: "본문 입력 칸에 들어가지 못해 중단했습니다. 그대로 진행하면 글 전체가 제목 칸에 들어갑니다.",
+        note: `본문 입력 칸에 들어가지 못해 중단했습니다. 그대로 진행하면 글 전체가 제목 칸에 들어갑니다. 화면을 재서 남긴 파일: ${diagPath}`,
       };
     }
 

@@ -61,9 +61,16 @@ export const EDITOR = {
     ".se-title-text",
   ],
   body: [
+    // ── 실측값(명세). 순서를 바꾸지 마라 ──
     ".se-section-text .se-text-paragraph",
     ".se-component-content .se-text-paragraph",
     ".se-main-container",
+    // ── 아래는 실측이 아니라 폴백 후보다. 위가 전부 안 잡힐 때만 쓰인다.
+    //    ⚠️ `.se-text-paragraph` 만 단독으로 넣으면 안 된다 — **제목 칸도 같은 클래스**라
+    //    첫 번째로 제목이 잡히고, 그게 바로 7-26(글 전체가 제목 칸에 들어감)이다.
+    //    그래서 반드시 본문 쪽 컨테이너로 스코프를 건다.
+    ".se-component.se-text .se-text-paragraph",
+    ".se-module-text .se-text-paragraph",
   ],
 
   imageButton: [
