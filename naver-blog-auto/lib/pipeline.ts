@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { CONFIG } from "@/config";
+import { CONFIG, APP_BUILD } from "@/config";
 import { getDb, setJobStage, failJob } from "@/lib/db";
 import { jobLog } from "@/lib/log";
 import { getSettings } from "@/lib/settings";
@@ -137,6 +137,9 @@ export async function runJob(jobId: number): Promise<void> {
 
     const inputs = JSON.parse(job.inputs || "{}") as JobInputs;
     const s = getSettings();
+
+    // 어느 판이 돌고 있는지 로그 첫 줄에 남긴다(위 APP_BUILD 주석 참조).
+    log(`앱 ${APP_BUILD} 판으로 시작합니다.`);
 
     // ── 내 사진: 목록과 설명을 여기서 "한 번만" 만든다(6-8/6-10) ──
     let photos: string[] = [];

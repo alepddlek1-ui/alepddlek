@@ -10,7 +10,7 @@ import path from "node:path";
 import { checkClaude } from "@/lib/claude";
 import { DIRS } from "@/lib/paths";
 import { cfConfigured } from "@/lib/ai/imagegen";
-import { CONFIG } from "@/config";
+import { CONFIG, APP_BUILD } from "@/config";
 
 type Row = { name: string; ok: boolean | "opt"; detail: string; todo?: string };
 const rows: Row[] = [];
@@ -122,7 +122,7 @@ rows.push({
 
 // ── 출력 ──────────────────────────────────────
 const mark = (ok: Row["ok"]) => (ok === true ? "✓" : ok === "opt" ? "―" : "✗");
-console.log("\n  점검 결과\n  " + "─".repeat(52));
+console.log(`\n  점검 결과  (앱 ${APP_BUILD} 판)\n  ` + "─".repeat(52));
 for (const r of rows) {
   console.log(`  ${mark(r.ok)} ${r.name.padEnd(16, " ")} ${r.detail}`);
 }

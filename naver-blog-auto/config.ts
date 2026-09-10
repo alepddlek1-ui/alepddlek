@@ -45,3 +45,13 @@ export const CONFIG = {
 } as const;
 
 export const CF_MODEL = "@cf/black-forest-labs/flux-1-schnell";
+
+/**
+ * 이 코드가 언제 판인지 나타내는 표시.
+ *
+ * ⚠️ 왜 필요한가: 사용자가 새 버전을 받아 덮어썼는지 확인할 방법이 없어서
+ *    "고쳤다는데 왜 똑같냐 / 정말 새 버전이 맞냐" 로 시간을 크게 썼다.
+ *    작업 로그 첫 줄과 점검 화면에 찍어, 어느 판이 돌고 있는지 한눈에 보이게 한다.
+ *    코드를 고칠 때마다 이 값을 올린다.
+ */
+export const APP_BUILD = "2026-09-10a";
