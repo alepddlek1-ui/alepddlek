@@ -91,21 +91,21 @@ cut:
 
 ---
 
-### 브리프를 쓰는 사람이 따로 있습니다
+### 브리프를 쓰는 부서가 따로 있습니다
 
 대본·훅·자막 키워드를 채워주는 담당이 `.claude/` 에 들어있습니다. 제품 사진이나 특징, 참고할 대본을 던지면
 20초 쇼핑 쇼츠 대본과 함께 **이 브리프를 채운 YAML** 을 그대로 내줍니다.
 
+- **총괄(마스터)**: `.claude/skills/shopping-shorts-master/` (지시 · 단계별 검수 · 발행 패키지 승인) → `.claude/agents/shorts-master.md`
 - 분석 담당: `.claude/skills/shopping-shorts-analyst/` (상품 분석 · 후킹 포인트 8개 · 경쟁 영상 분해) → `.claude/agents/shorts-analyst.md`
 - 리서치 담당: `.claude/skills/shopping-shorts-researcher/` (샤오홍슈·TikTok 검색어 · 한중영 대응 사전) → `.claude/agents/shorts-researcher.md`
 - 대본 담당: `.claude/skills/shopping-shorts-writer/` (페르소나 · 훅 공식 · 20초 비트 · 과장 금지 규정) → `.claude/agents/shorts-writer.md`
 - 제목 담당: `.claude/skills/shopping-shorts-titler/` (15~20자 궁금증 제목 5개 · 썸네일 2줄 분할) → `.claude/agents/shorts-titler.md`
 - 마케팅 담당: `.claude/skills/shopping-shorts-marketer/` (썸네일 문구 · 검색 캡션 · 해시태그 · 댓글 유도) → `.claude/agents/shorts-marketer.md`
-- **총괄(마스터)**:  (지시 · 단계별 검수 · 발행 패키지 승인) → 
 - 소재 담당: `.claude/skills/shopping-shorts-pipeline/` (비슷한 제품 · 연관 콘텐츠 · 시리즈 기획 · 일곱 확장 축) → `.claude/agents/shorts-pipeline.md`
 - 브리프 서식: `.claude/skills/shopping-shorts-writer/templates/brief.template.yaml`
 
-부서 규정과 공정은 , 프로젝트 지침은 루트  에 있습니다. 한 편 전체는 `/shorts <제품명>`, 검수만은 `/shorts-qa` 로 돌립니다.
+부서 규정과 공정은 `.claude/TEAM.md`, 프로젝트 지침은 루트 `CLAUDE.md` 에 있습니다. 한 편 전체는 `/shorts <제품명>`, 검수만은 `/shorts-qa` 로 돌립니다.
 
 리서치 담당이 해외에서 먹힌 각을 찾아오고, 분석 담당이 그 이유와 후킹 포인트를 근거로 만들고, 대본 담당이 영상을 만들 브리프를, 제목 담당이 썸네일과 검색을 같이 잡는 한 줄을, 마케팅 담당이 그 영상을 올릴 문구를 채웁니다. 소재 담당이 다음 편을 끊기지 않게 대어줍니다.
 
