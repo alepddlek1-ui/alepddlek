@@ -91,6 +91,17 @@ cut:
 
 ---
 
+### 브리프를 쓰는 사람이 따로 있습니다
+
+대본·훅·자막 키워드를 채워주는 담당이 `.claude/` 에 들어있습니다. 제품 사진이나 특징, 참고할 대본을 던지면
+20초 쇼핑 쇼츠 대본과 함께 **이 브리프를 채운 YAML** 을 그대로 내줍니다.
+
+- 스킬: `.claude/skills/shopping-shorts-writer/` (페르소나 · 훅 공식 · 20초 비트 · 과장 금지 규정)
+- 서브에이전트: `.claude/agents/shorts-writer.md`
+- 브리프 서식: `.claude/skills/shopping-shorts-writer/templates/brief.template.yaml`
+
+---
+
 ## 무엇을 어떻게 자르나
 
 "버벅거림"은 한 가지가 아니라서, 네 종류를 따로 잡습니다.
