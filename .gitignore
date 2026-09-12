@@ -14,3 +14,9 @@ out/
 *.mp3
 *.wav
 !examples/**/*.mp3
+
+# 쇼핑쇼츠 작업물 — 편마다 쌓이고, 영상 경로가 로컬에 묶여 있다
+work/
+inbox/*
+!inbox/.gitkeep
+!inbox/README.md
