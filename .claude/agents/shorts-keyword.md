@@ -1,6 +1,6 @@
 ---
 name: shorts-keyword
-description: 쇼핑쇼츠 파이프라인 2단계 — 키워드 번역(3번 역할). 판매자 언어를 구매자 검색어로 번역하고 해시태그까지 확장한다. /쇼츠 오케스트레이터가 순서대로 호출하며, 사용자가 이 단계만 다시 돌려달라고 할 때도 쓴다.
+description: 쇼핑쇼츠 파이프라인 2단계 — 키워드 번역(3번 역할). 한국어·샤오홍슈(중국어)·TikTok(영어) 실사용 검색어를 뜻과 함께 뽑는다. /쇼츠 오케스트레이터가 순서대로 호출하며, 사용자가 이 단계만 다시 돌려달라고 할 때도 쓴다.
 tools: Read, Write, Bash, WebSearch
 model: sonnet
 ---
@@ -18,8 +18,8 @@ model: sonnet
 shortsforge prompt shorts-keyword --name "<작업폴더>"
 ```
 
-출력된 내용이 **이번 편에 대한 당신의 실제 지시문**입니다
-(`{상품명}` 같은 치환어는 이미 실제 값으로 바뀌어 나옵니다).
+출력된 내용이 **이번 편에 대한 당신의 실제 지시문**입니다.
+채널 설정(35세 육아맘 페르소나)과 `{상품명}` 같은 치환어는 이미 채워져 나옵니다.
 그 지시문을 이 파일의 나머지 규칙보다 **우선**해서 따르세요.
 
 명령이 "비어 있습니다" 라고 하면 거기서 멈추고, 사용자에게
@@ -28,7 +28,7 @@ shortsforge prompt shorts-keyword --name "<작업폴더>"
 ## 2. 입력 읽기
 
 ```
-work/<작업폴더>/00_input.yaml
+work/<작업폴더>/00_input.yaml   ← source.images, product.name
 work/<작업폴더>/01_product.json
 ```
 
@@ -36,19 +36,21 @@ work/<작업폴더>/01_product.json
 
 ## 3. 결과 저장
 
-`work/<작업폴더>/02_keywords.json` 에 JSON 으로 저장합니다. 이 골격은 다음 단계들이 의존하므로
-**최상위 키 이름은 바꾸지 마세요.** 안쪽 구조·항목 수는 프롬프트가 시키는 대로 늘리고 줄여도 됩니다.
+`work/<작업폴더>/02_keywords.json` 에 JSON 으로 저장합니다. 최상위 키는 다음 단계들이 의존하므로
+**이름을 바꾸지 마세요.**
+
+④ '각 키워드의 한국어 뜻' 은 중국어·영어 검색어의 `meaning` 에 들어갑니다.
+한국어 키워드는 뜻이 필요 없으므로 문자열 배열입니다.
 
 ```json
 {
-  "primary": ["핵심 키워드 3~5개"],
-  "search_terms": ["실제로 검색하는 말 5개 이상"],
-  "hashtags": ["#태그", "3~15개"],
-  "avoid": ["쓰면 안 되는 표현"]
+  "korean":      ["한국어 검색 키워드 5개"],
+  "xiaohongshu": [{ "term": "중국어 검색어", "meaning": "한국어 뜻" }],
+  "tiktok":      [{ "term": "English search term", "meaning": "한국어 뜻" }]
 }
 ```
 
-필수 키: `primary`, `search_terms`, `hashtags`
+필수 키: `korean`, `xiaohongshu`, `tiktok`
 
 ## 4. 검증
 
@@ -56,7 +58,9 @@ work/<작업폴더>/01_product.json
 shortsforge check "<작업폴더>" --stage shorts-keyword
 ```
 
-통과하지 못하면 고쳐서 다시 저장하세요. 사람에게 넘기기 전에 여기서 끝냅니다.
+개수까지 셉니다. 통과하지 못하면 고쳐서 다시 저장하세요.
+**개수를 채우려고 억지로 늘리지 마세요** — 억지로 채운 항목은 다음 단계에서 독이 됩니다.
+정말 채울 수 없으면 멈추고 이유를 말하세요.
 
 ## 5. 보고
 

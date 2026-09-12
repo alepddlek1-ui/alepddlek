@@ -55,8 +55,8 @@ STAGES: tuple[Stage, ...] = (
         title="상품 분석",
         filename="01_product.json",
         prompt="01-상품분석.md",
-        required=("product", "hooks", "objections", "proof"),
-        summary="상품 페이지·리뷰에서 팔리는 근거와 반박 포인트를 뽑는다",
+        required=("strengths", "buying_points", "differentiators", "target", "hooks"),
+        summary="사진·제품명에서 핵심 장점·구매 포인트·차별점·타겟·후킹 10개를 뽑는다",
     ),
     Stage(
         order=2,
@@ -66,8 +66,8 @@ STAGES: tuple[Stage, ...] = (
         filename="02_keywords.json",
         prompt="02-키워드번역.md",
         needs=("shorts-product",),
-        required=("primary", "search_terms", "hashtags"),
-        summary="판매자 언어를 구매자 검색어로 번역하고 해시태그까지 확장한다",
+        required=("korean", "xiaohongshu", "tiktok"),
+        summary="한국어·샤오홍슈(중국어)·TikTok(영어) 실사용 검색어를 뜻과 함께 뽑는다",
     ),
     Stage(
         order=3,
@@ -77,8 +77,8 @@ STAGES: tuple[Stage, ...] = (
         filename="03_rivals.json",
         prompt="03-경쟁영상분석.md",
         needs=("shorts-keyword",),
-        required=("videos", "patterns", "gaps"),
-        summary="같은 키워드 상위 쇼츠의 훅·구성·이탈 구간을 해부한다",
+        required=("videos", "improvements"),
+        summary="레퍼런스 영상의 후킹·전개·CTA·조회수가 나온 이유와 개선안을 뽑는다",
     ),
     Stage(
         order=4,
@@ -89,7 +89,7 @@ STAGES: tuple[Stage, ...] = (
         prompt="04-대본.md",
         needs=("shorts-product", "shorts-rival"),
         required=("hook", "beats", "cta", "duration_sec"),
-        summary="0.8초 훅부터 CTA까지, 말로 읽히는 쇼츠 대본을 쓴다",
+        summary="첫 2초 후킹 + 공감·문제·해결·제품·CTA 20초 대본을 쓴다",
     ),
     Stage(
         order=5,
@@ -100,7 +100,7 @@ STAGES: tuple[Stage, ...] = (
         prompt="05-제목.md",
         needs=("shorts-script", "shorts-keyword"),
         required=("titles", "pick"),
-        summary="검색에 걸리면서 클릭도 나는 제목 후보를 만들고 하나를 고른다",
+        summary="궁금증 중심 15~30자 제목 20개를 만들고 그중 하나를 고른다",
     ),
     Stage(
         order=6,
@@ -110,8 +110,8 @@ STAGES: tuple[Stage, ...] = (
         filename="06_caption.json",
         prompt="06-캡션썸네일.md",
         needs=("shorts-script", "shorts-title"),
-        required=("caption", "hashtags", "thumbnail"),
-        summary="업로드 캡션과 커버(썸네일) 문구·구도를 만든다",
+        required=("thumbnail_texts", "caption", "hashtags", "comment_baits"),
+        summary="썸네일 문구 5개·검색 최적화 캡션·해시태그 15개·댓글 유도 3개를 만든다",
     ),
     Stage(
         order=7,
@@ -121,8 +121,8 @@ STAGES: tuple[Stage, ...] = (
         filename="07_comments.json",
         prompt="07-댓글.md",
         needs=("shorts-script",),
-        required=("pinned", "seeds", "replies"),
-        summary="고정댓글·시드댓글·예상 질문 답변을 미리 준비한다",
+        required=("pinned", "replies", "buy", "save"),
+        summary="고정댓글 5개·대댓글 20개·구매 유도·저장 유도 댓글을 준비한다",
     ),
     Stage(
         order=0,
@@ -131,8 +131,8 @@ STAGES: tuple[Stage, ...] = (
         title="콘텐츠 무한 생성",
         filename="08_factory.json",
         prompt="08-무한생성.md",
-        required=("seeds",),
-        summary="시드 큐를 돌며 위 7단계를 상품마다 반복시킨다",
+        required=("similar_products", "related_content", "series"),
+        summary="비슷한 제품 50·연관 콘텐츠 50·시리즈 기획 30을 뽑아 다음 편 큐를 채운다",
     ),
 )
 

@@ -1,6 +1,6 @@
 ---
 name: shorts-script
-description: 쇼핑쇼츠 파이프라인 4단계 — 대본(1번 역할). 0.8초 훅부터 CTA까지, 말로 읽히는 쇼츠 대본을 쓴다. /쇼츠 오케스트레이터가 순서대로 호출하며, 사용자가 이 단계만 다시 돌려달라고 할 때도 쓴다.
+description: 쇼핑쇼츠 파이프라인 4단계 — 대본(1번 역할). 첫 2초 후킹 + 공감·문제·해결·제품·CTA 20초 대본을 쓴다. /쇼츠 오케스트레이터가 순서대로 호출하며, 사용자가 이 단계만 다시 돌려달라고 할 때도 쓴다.
 tools: Read, Write, Bash
 model: sonnet
 ---
@@ -18,8 +18,8 @@ model: sonnet
 shortsforge prompt shorts-script --name "<작업폴더>"
 ```
 
-출력된 내용이 **이번 편에 대한 당신의 실제 지시문**입니다
-(`{상품명}` 같은 치환어는 이미 실제 값으로 바뀌어 나옵니다).
+출력된 내용이 **이번 편에 대한 당신의 실제 지시문**입니다.
+채널 설정(35세 육아맘 페르소나)과 `{상품명}` 같은 치환어는 이미 채워져 나옵니다.
 그 지시문을 이 파일의 나머지 규칙보다 **우선**해서 따르세요.
 
 명령이 "비어 있습니다" 라고 하면 거기서 멈추고, 사용자에게
@@ -28,24 +28,33 @@ shortsforge prompt shorts-script --name "<작업폴더>"
 ## 2. 입력 읽기
 
 ```
-work/<작업폴더>/00_input.yaml   ← source.video 가 이번 소재 영상
-work/<작업폴더>/01_product.json
-work/<작업폴더>/03_rivals.json
+work/<작업폴더>/00_input.yaml   ← source.images, source.reference, video.duration_sec
+work/<작업폴더>/01_product.json   ← 제품 특징은 여기서 온다
+work/<작업폴더>/03_rivals.json    ← 개선안을 반영한다
 ```
 
 없는 입력이 있으면 지어내지 말고, 무엇이 없는지 말하고 멈추세요.
 
 ## 3. 결과 저장
 
-`work/<작업폴더>/04_script.json` 에 JSON 으로 저장합니다. 이 골격은 다음 단계들이 의존하므로
-**최상위 키 이름은 바꾸지 마세요.** 안쪽 구조·항목 수는 프롬프트가 시키는 대로 늘리고 줄여도 됩니다.
+`work/<작업폴더>/04_script.json` 에 JSON 으로 저장합니다. 최상위 키는 다음 단계들이 의존하므로
+**이름을 바꾸지 마세요.**
+
+`duration_sec` 는 00_input.yaml 의 `video.duration_sec`(기본 20)을 따릅니다.
+`beats` 의 `sec` 합 + 훅 2초가 그 길이에 맞아야 합니다.
+TTS 가 읽습니다 — 괄호·이모지·특수문자를 `line` 에 넣지 마세요.
 
 ```json
 {
-  "hook": "0~2초에 박히는 한 문장",
-  "beats": [{ "label": "문제", "line": "말할 대사", "visual": "화면에 보일 것", "overlay": "자막 강조", "sec": 4 }],
-  "cta": "마지막 행동 유도 문장",
-  "duration_sec": 35,
+  "hook": "첫 2초. 여기서 스크롤이 멈춘다",
+  "beats": [
+    { "label": "공감", "line": "TTS가 읽을 문장", "visual": "화면에 보일 것", "sec": 4 },
+    { "label": "문제", "line": "...", "visual": "...", "sec": 4 },
+    { "label": "해결", "line": "...", "visual": "...", "sec": 4 },
+    { "label": "제품", "line": "...", "visual": "...", "sec": 5 }
+  ],
+  "cta": "댓글을 유도하는 마무리",
+  "duration_sec": 20,
   "keywords": ["자막에서 강조할 단어"]
 }
 ```
@@ -58,7 +67,9 @@ work/<작업폴더>/03_rivals.json
 shortsforge check "<작업폴더>" --stage shorts-script
 ```
 
-통과하지 못하면 고쳐서 다시 저장하세요. 사람에게 넘기기 전에 여기서 끝냅니다.
+개수까지 셉니다. 통과하지 못하면 고쳐서 다시 저장하세요.
+**개수를 채우려고 억지로 늘리지 마세요** — 억지로 채운 항목은 다음 단계에서 독이 됩니다.
+정말 채울 수 없으면 멈추고 이유를 말하세요.
 
 ## 5. 보고
 

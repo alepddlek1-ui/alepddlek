@@ -56,17 +56,18 @@ def test_next_stage_walks_the_pipeline(tmp_path):
     ws = Workspace.create("테스트", root=tmp_path)
     assert ws.next_stage().slug == "shorts-product"
 
-    ws.save("shorts-product", {"product": {}, "hooks": [1], "objections": [1], "proof": [1]})
+    ws.save("shorts-product", {"strengths": [1], "buying_points": [1],
+                               "differentiators": [1], "target": "x", "hooks": [1]})
     assert ws.next_stage().slug == "shorts-keyword"
 
-    ws.save("shorts-keyword", {"primary": [1], "search_terms": [1], "hashtags": [1]})
+    ws.save("shorts-keyword", {"korean": [1], "xiaohongshu": [1], "tiktok": [1]})
     assert ws.next_stage().slug == "shorts-rival"
 
 
 def test_script_waits_for_both_dependencies(tmp_path):
     """대본은 상품 분석과 경쟁 분석이 둘 다 있어야 돈다."""
     ws = Workspace.create("테스트", root=tmp_path)
-    ws.save("shorts-product", {"product": {}})
+    ws.save("shorts-product", {"strengths": [1]})
     assert ws.next_stage().slug != "shorts-script"
 
 
@@ -115,23 +116,44 @@ def test_missing_key_is_reported():
 
 def test_empty_value_counts_as_missing():
     problems = validate(stage_by_slug("shorts-keyword"),
-                        {"primary": [], "search_terms": ["a"], "hashtags": ["#a"]})
-    assert any("primary" in p for p in problems)
+                        {"korean": [], "xiaohongshu": ["a"], "tiktok": ["b"]})
+    assert any("korean" in p for p in problems)
 
 
-def test_shape_rules_catch_lazy_output():
-    """키는 다 있는데 내용이 부실한 경우까지 잡아야 한다."""
+def test_counts_are_enforced_as_the_prompt_asked():
+    """"후킹 포인트 10개" 라고 써놓고 7개를 받으면 안 된다."""
+    problems = validate(stage_by_slug("shorts-product"), {
+        "strengths": ["a", "b"], "buying_points": ["x"],
+        "differentiators": ["y"], "target": "z", "hooks": ["h"] * 7,
+    })
+    assert any("10개" in p and "지금 7개" in p for p in problems)
+
+
+def test_title_length_range_is_checked():
+    """20개를 채워도 길이가 어긋나면 통과시키지 않는다."""
     problems = validate(stage_by_slug("shorts-title"),
-                        {"titles": ["하나", "둘"], "pick": "하나"})
-    assert any("5개 이상" in p for p in problems)
+                        {"titles": ["짧은제목"] * 20, "pick": "짧은제목"})
+    assert any("15~30자" in p for p in problems)
+
+
+def test_script_must_walk_the_promised_flow():
+    """공감 → 문제 → 해결 → 제품 흐름이 빠지면 대본이 아니다."""
+    problems = validate(stage_by_slug("shorts-script"), {
+        "hook": "이거 모르면 손해",
+        "beats": [{"label": "공감", "line": "a"}, {"label": "제품", "line": "b"}],
+        "cta": "링크 확인",
+        "duration_sec": 20,
+    })
+    assert any("공감" in p for p in problems)
 
 
 def test_good_payload_passes():
     payload = {
         "hook": "이거 모르면 손해",
-        "beats": [{"line": "a"}, {"line": "b"}],
+        "beats": [{"label": label, "line": "a"}
+                  for label in ("공감", "문제", "해결", "제품")],
         "cta": "링크 확인",
-        "duration_sec": 35,
+        "duration_sec": 20,
     }
     assert validate(stage_by_slug("shorts-script"), payload) == []
 
@@ -171,7 +193,36 @@ def test_resolve_fills_this_episodes_values(tmp_path):
         "## 프롬프트\n{상품명} 대본을 {목표길이}초로 써라.\n", encoding="utf-8"
     )
     out = resolve(stage, ws, root=slot)
-    assert "무선청소기 대본을 35초로" in out
+    assert "무선청소기 대본을 20초로" in out
+
+
+def test_channel_persona_is_prepended_to_every_prompt(tmp_path):
+    """페르소나가 빠진 대본은 다른 채널 물건이 된다."""
+    ws = Workspace.create("무선청소기", root=tmp_path)
+    slot = tmp_path / "prompts"
+    slot.mkdir()
+    (slot / "00-채널.md").write_text(
+        "## 프롬프트\n35세 육아맘, 털털하고 쾌활함.\n", encoding="utf-8"
+    )
+    stage = stage_by_slug("shorts-script")
+    (slot / stage.prompt).write_text("## 프롬프트\n대본을 써라.\n", encoding="utf-8")
+
+    out = resolve(stage, ws, root=slot)
+    assert "35세 육아맘" in out
+    assert out.index("35세 육아맘") < out.index("대본을 써라")   # 앞에 깔린다
+
+
+def test_channel_persona_is_not_duplicated(tmp_path):
+    """프롬프트가 {채널} 을 직접 부르면 그 자리에만 들어간다."""
+    ws = Workspace.create("무선청소기", root=tmp_path)
+    slot = tmp_path / "prompts"
+    slot.mkdir()
+    (slot / "00-채널.md").write_text("## 프롬프트\n35세 육아맘\n", encoding="utf-8")
+    stage = stage_by_slug("shorts-script")
+    (slot / stage.prompt).write_text(
+        "## 프롬프트\n아래 채널용 대본:\n{채널}\n", encoding="utf-8"
+    )
+    assert resolve(stage, ws, root=slot).count("35세 육아맘") == 1
 
 
 # --------------------------------------------------------------------------- #
@@ -198,6 +249,24 @@ def test_brief_stacks_script_lines_in_order(tmp_path):
     assert lines[0] == "설거지 10분 줄었습니다"
     assert lines[-1] == "프로필 링크에서 확인"
     assert len(lines) == 4                       # 훅 + 비트 2 + CTA
+
+
+def test_brief_carries_the_ingested_video_as_footage(tmp_path):
+    """영상을 넣고 시작했으면 손으로 경로를 옮겨적게 하지 않는다."""
+    video = tmp_path / "장갑.mp4"
+    video.write_bytes(b"\x00" * 16)
+    ws = ingest(video, root=tmp_path / "work")
+    ws.save("shorts-script", {
+        "hook": "h", "beats": [{"label": "공감", "line": "a"}],
+        "cta": "c", "duration_sec": 20,
+    })
+    assert build_brief(ws)["footage"] == [str(video.resolve())]
+
+
+def test_brief_notes_the_chosen_title(tmp_path):
+    ws = _finished_workspace(tmp_path)
+    ws.save("shorts-title", {"titles": ["x"] * 20, "pick": "이 영상의 제목"})
+    assert "제목: 이 영상의 제목" in build_brief(ws)["idea"]
 
 
 def test_brief_is_loadable_by_reelforge(tmp_path):

@@ -24,9 +24,10 @@ def _read_input(ws: Workspace) -> dict[str, Any]:
 def build_brief(ws: Workspace) -> dict[str, Any]:
     """대본·캡션·키워드를 모아 reelforge 브리프 딕셔너리를 만든다."""
     script = ws.load("shorts-script")
-    source = _read_input(ws)
-    video = source.get("video") or {}
-    audience = source.get("audience") or {}
+    raw = _read_input(ws)
+    source = raw.get("source") or {}
+    video = raw.get("video") or {}
+    audience = raw.get("audience") or {}
 
     # 나레이션 대본: 한 줄 = 한 호흡. reelforge 의 TTS 가 줄 단위로 끊어 읽는다.
     lines = [script.get("hook", "")]
@@ -39,19 +40,25 @@ def build_brief(ws: Workspace) -> dict[str, Any]:
 
     keywords = list(script.get("keywords") or [])
     if not keywords and ws.is_done("shorts-keyword"):
-        keywords = [k for k in (ws.load("shorts-keyword").get("primary") or [])][:6]
+        # 자막 강조는 한국어만. 샤오홍슈·TikTok 검색어는 업로드용이지 화면용이 아니다.
+        keywords = [str(k) for k in (ws.load("shorts-keyword").get("korean") or [])][:6]
 
+    # 편집하다 보면 '이 영상이 무슨 제목으로 올라갈 건지'를 자꾸 잊는다. 같이 적어둔다.
+    picked_title = ws.load("shorts-title").get("pick", "") if ws.is_done("shorts-title") else ""
     idea_lines = [
-        f"타깃: {audience.get('who', '')}",
+        f"타깃: {audience.get('who') or '채널 기본 (35세 육아맘)'}",
         f"불편: {audience.get('pain', '')}",
-        f"톤: {audience.get('tone', '')}",
+        f"톤: {audience.get('tone') or '털털하고 쾌활한 구어체'}",
         f"구성: {' → '.join(b.get('label', '') for b in script.get('beats', []) if b.get('label'))}",
+        f"제목: {picked_title}",
     ]
+
+    # 영상을 넣고 시작했으면 그 경로가 그대로 촬영본이다. 손으로 옮겨적게 하지 않는다.
+    footage = [str(source.get("video"))] if source.get("video") else []
 
     brief: dict[str, Any] = {
         "project": ws.name,
-        # 촬영 전이라 비워둔다. 찍고 나서 경로만 채우면 된다.
-        "footage": [],
+        "footage": footage,
         "aspect": video.get("aspect", "9:16"),
         "fps": 30,
         "hook": script.get("hook", ""),
@@ -94,8 +101,8 @@ _BriefDumper.add_representer(str, _literal)
 
 
 _HEADER = """# reelforge 브리프 — shortsforge 가 생성했습니다.
-# 촬영이 끝나면 footage 에 파일 경로만 채우고:
 #     reelforge build {path}
+# footage 가 비어 있으면 촬영 전입니다. 찍고 나서 경로만 채우세요.
 """
 
 

@@ -20,6 +20,9 @@ from .workspace import Workspace
 PLACEHOLDER = "아직 비어 있습니다"
 _HEADING = re.compile(r"^##\s*프롬프트\s*$", re.MULTILINE)
 
+# 채널 페르소나. 편마다 바뀌지 않으므로 한 파일에 두고 모든 단계가 참조한다.
+CHANNEL_FILE = "00-채널.md"
+
 
 class PromptError(RuntimeError):
     pass
@@ -42,7 +45,18 @@ def is_empty(body: str) -> bool:
     return not body.strip() or PLACEHOLDER in body
 
 
-def variables(ws: Workspace) -> dict[str, str]:
+def channel(root: Path | None = None) -> str:
+    """채널 설정 파일의 본문. 없으면 빈 문자열."""
+    path = (root or Path("prompts")) / CHANNEL_FILE
+    if not path.is_file():
+        return ""
+    text = path.read_text(encoding="utf-8")
+    match = _HEADING.search(text)
+    body = text[match.end():].strip() if match else text.strip()
+    return "" if is_empty(body) else body
+
+
+def variables(ws: Workspace, *, root: Path | None = None) -> dict[str, str]:
     """`{상품명}` 같은 치환어에 넣을 값들."""
     raw: dict = {}
     if ws.input_path.is_file():
@@ -51,18 +65,24 @@ def variables(ws: Workspace) -> dict[str, str]:
     audience = raw.get("audience") or {}
     source = raw.get("source") or {}
     video = raw.get("video") or {}
+    def listing(values) -> str:
+        return ", ".join(str(v) for v in values) if isinstance(values, list) else str(values or "")
+
     return {
+        "채널": channel(root),
         "작업폴더": str(ws.root),
-        "상품명": str(raw.get("name") or ws.name),
+        "상품명": str(product.get("name") or raw.get("name") or ws.name),
         "상품링크": str(product.get("url") or ""),
         "카테고리": str(product.get("category") or ""),
         "가격": str(product.get("price") or ""),
         "영상경로": str(source.get("video") or ""),
         "영상길이": str(source.get("duration_sec") or ""),
-        "타깃": str(audience.get("who") or ""),
+        "사진": listing(source.get("images")),
+        "레퍼런스": listing(source.get("reference")),
+        "타깃": str(audience.get("who") or "남녀노소 (채널 기본)"),
         "불편": str(audience.get("pain") or ""),
-        "톤": str(audience.get("tone") or ""),
-        "목표길이": str(video.get("duration_sec") or 35),
+        "톤": str(audience.get("tone") or "털털하고 쾌활한 구어체"),
+        "목표길이": str(video.get("duration_sec") or 20),
     }
 
 
@@ -87,4 +107,9 @@ def resolve(stage: Stage, ws: Workspace, *, root: Path | None = None) -> str:
             f"{stage.prompt_path} 가 비어 있습니다. "
             f"'## 프롬프트' 아래에 {stage.title} 프롬프트를 붙여넣으세요."
         )
-    return substitute(body, variables(ws))
+    values = variables(ws, root=root)
+    # 프롬프트가 채널 설정을 직접 부르지 않아도 앞에 깔아준다.
+    # 페르소나가 빠진 대본은 다른 채널 물건이 된다.
+    if values["채널"] and "{채널}" not in body:
+        body = f"{values['채널']}\n\n---\n\n{body}"
+    return substitute(body, values)
