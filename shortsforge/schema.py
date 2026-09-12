@@ -1,12 +1,17 @@
 """산출물 검증.
 
-프롬프트가 "후킹 포인트 10개", "대댓글 20개" 라고 말했는데 7개만 나오는 일은
-흔하다. 그걸 다음 단계로 흘려보내면 마지막에 가서야 발견한다.
-여기서 **개수까지** 세는 이유다.
+문제를 두 등급으로 나눈다.
 
-jsonschema 를 쓰지 않는 이유: 이 파이프라인이 요구하는 건 '필수 키가 있는가 /
-개수가 맞는가' 수준이고, 의존성 하나를 더 얹을 만큼의 값이 없다.
-대신 오류 메시지를 사람이 바로 고칠 수 있게 쓴다.
+* **막는다(blocking)** — 필수 키가 없거나 비었다. 다음 단계가 이걸 읽다가
+  터지거나, 더 나쁘게는 빈 값으로 조용히 이상한 걸 만든다.
+* **알려만 준다(warning)** — 프롬프트가 10개를 요구했는데 9개가 나왔다.
+  아깝지만 작업을 멈출 이유는 아니다. 후킹 9개짜리 영상도 영상이다.
+
+이 구분이 중요한 이유: 개수 하나 모자란다고 파이프라인이 서면
+자동화가 아니라 방해가 된다. 대신 마지막 보고에 "후킹 9/10" 이 남는다.
+
+jsonschema 를 쓰지 않는 이유: 요구하는 게 '키가 있는가 / 개수가 맞는가'
+수준이고, 의존성 하나를 더 얹을 만큼의 값이 없다.
 """
 
 from __future__ import annotations
@@ -14,6 +19,25 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from .stages import Stage
+
+
+class Problem(str):
+    """검증 결과 한 줄. 문자열처럼 쓰되 막을지 여부를 달고 다닌다."""
+
+    blocking: bool
+
+    def __new__(cls, message: str, *, blocking: bool) -> "Problem":
+        obj = super().__new__(cls, message)
+        obj.blocking = blocking
+        return obj
+
+
+def blocking_only(problems: list[Problem]) -> list[Problem]:
+    return [p for p in problems if p.blocking]
+
+
+def warnings_only(problems: list[Problem]) -> list[Problem]:
+    return [p for p in problems if not p.blocking]
 
 
 def _count(minimum: int, maximum: int | None = None) -> Callable[[Any], bool]:
@@ -103,18 +127,21 @@ _EXTRA: dict[str, list[tuple[str, str, Callable[[Any], bool]]]] = {
 }
 
 
-def validate(stage: Stage, payload: dict) -> list[str]:
-    """문제를 전부 모아서 돌려준다. 빈 리스트면 통과."""
-    problems: list[str] = []
+def validate(stage: Stage, payload: dict) -> list[Problem]:
+    """문제를 전부 모아서 돌려준다. 빈 리스트면 완벽하게 통과.
+
+    막는 것만 보려면 `blocking_only()` 를 쓴다.
+    """
+    problems: list[Problem] = []
 
     if not isinstance(payload, dict):
-        return [f"{stage.filename}: 최상위가 객체(JSON object)여야 합니다"]
+        return [Problem(f"{stage.filename}: 최상위가 객체(JSON object)여야 합니다", blocking=True)]
 
     for key in stage.required:
         if key not in payload:
-            problems.append(f"{stage.filename}: '{key}' 키가 없습니다")
+            problems.append(Problem(f"{stage.filename}: '{key}' 키가 없습니다", blocking=True))
         elif payload[key] in (None, "", [], {}):
-            problems.append(f"{stage.filename}: '{key}' 가 비어 있습니다")
+            problems.append(Problem(f"{stage.filename}: '{key}' 가 비어 있습니다", blocking=True))
 
     for key, why, check in _EXTRA.get(stage.slug, []):
         value = payload.get(key)
@@ -130,6 +157,7 @@ def validate(stage: Stage, payload: dict) -> list[str]:
                 if isinstance(value, list) and getattr(check, "counts", False)
                 else ""
             )
-            problems.append(f"{stage.filename}: '{key}' — {why}{got}")
+            # 개수·형식이 모자란 건 아쉬운 것이지 못 쓰는 게 아니다.
+            problems.append(Problem(f"{stage.filename}: '{key}' — {why}{got}", blocking=False))
 
     return problems

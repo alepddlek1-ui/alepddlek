@@ -15,7 +15,7 @@ from shortsforge.brief import build_brief, write_brief
 from shortsforge.ingest import ingest
 from shortsforge.prompts import PromptError, is_empty, resolve, substitute
 from shortsforge.queue import DONE, PENDING, Seed, SeedQueue
-from shortsforge.schema import validate
+from shortsforge.schema import blocking_only, validate, warnings_only
 from shortsforge.stages import PIPELINE, stage_by_id, stage_by_slug
 from shortsforge.workspace import Workspace, WorkspaceError, slugify
 
@@ -118,6 +118,20 @@ def test_empty_value_counts_as_missing():
     problems = validate(stage_by_slug("shorts-keyword"),
                         {"korean": [], "xiaohongshu": ["a"], "tiktok": ["b"]})
     assert any("korean" in p for p in problems)
+
+
+def test_missing_key_blocks_but_short_count_only_warns():
+    """개수 하나 모자란다고 파이프라인이 서면 자동화가 아니라 방해다."""
+    problems = validate(stage_by_slug("shorts-product"), {
+        "strengths": ["a", "b"], "buying_points": ["x"],
+        "differentiators": [], "target": "z", "hooks": ["h"] * 7,
+    })
+    stops = blocking_only(problems)
+    notes = warnings_only(problems)
+
+    assert [p for p in stops if "differentiators" in p]   # 빈 필수 키는 막는다
+    assert [p for p in notes if "hooks" in p]             # 7/10 은 알려만 준다
+    assert not [p for p in stops if "hooks" in p]
 
 
 def test_counts_are_enforced_as_the_prompt_asked():

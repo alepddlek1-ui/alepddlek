@@ -42,13 +42,19 @@ work/<작업폴더>/brief.yaml
 이 셋의 경계를 흐리지 마세요. 프롬프트 내용이 에이전트 파일로 새면
 사용자가 프롬프트를 바꿔도 결과가 안 바뀝니다.
 
-## 프롬프트가 바뀌면 계약도 바뀐다
+## 검증은 두 등급이다
 
-`prompts/*.md` 의 요구 개수("후킹 포인트 10개", "대댓글 20개")는
-`shortsforge/schema.py` 가 실제로 셉니다. 사용자가 프롬프트에서 개수를 바꾸면
-`schema.py` 의 해당 규칙도 같이 고쳐야 합니다. 안 그러면 멀쩡한 산출물이 반려됩니다.
-반대로 프롬프트가 새 항목을 요구하면 `stages.py` 의 `required` 와
-`.claude/agents/` 의 JSON 골격을 같이 늘리세요.
+- **막음** — 필수 키(`stages.py` 의 `required`)가 없거나 비었다. 다음 단계가 터진다.
+  이건 고쳐야 한다.
+- **경고** — 프롬프트가 10개를 요구했는데 9개다. **멈추지 않는다.**
+  종료 코드도 0이다. 보고에 한 줄 적고 넘어간다.
+
+그래서 사용자가 프롬프트에서 개수를 바꿔도 `schema.py` 를 따라 고칠 **의무는 없습니다.**
+경고 문구가 잠깐 어긋날 뿐 작업은 굴러갑니다. 거슬리면 그때 고치세요.
+
+정말 같이 고쳐야 하는 건 하나뿐입니다: 프롬프트가 **새 항목**을 요구하게 됐고
+그게 다음 단계의 입력이 될 때. 그때만 `stages.py` 의 `required` 와
+`.claude/agents/` 의 JSON 골격을 늘립니다.
 
 ## 단계를 하나 추가·변경할 때
 
@@ -58,20 +64,21 @@ work/<작업폴더>/brief.yaml
 `tests/test_shortsforge.py::test_pipeline_is_in_dependency_order` 가
 순서가 꼬였는지 잡아줍니다.
 
-## 자주 쓰는 명령
+## 명령
 
-```bash
-shortsforge scan              # inbox/ 의 새 영상 → 작업 폴더
-shortsforge status            # 전체 진행 상황
-shortsforge next <이름>       # 다음에 돌릴 에이전트
-shortsforge check <이름>      # 산출물 검증
-shortsforge prompts           # 프롬프트 슬롯 채움 현황
-shortsforge brief <이름>      # reelforge 브리프 생성
+사람이 쓰는 건 이 넷뿐입니다.
 
-/쇼츠 <영상 또는 작업폴더>     # 한 편 끝까지
-/쇼츠-무한 [편수]              # 큐에 쌓인 것 연속 제작
-/쇼츠-상태                     # 지금 뭘 해야 하나
 ```
+/쇼츠                        지금 상황 (인자 없이)
+/쇼츠 <영상 또는 작업폴더>    한 편 끝까지
+/쇼츠-무한 [편수]             큐에 쌓인 것 연속 제작
+
+shortsforge                  터미널에서 상황만 볼 때
+```
+
+나머지 CLI(`ingest` `scan` `next` `check` `prompts` `prompt` `queue` `brief` `stages`)는
+**에이전트가 부르는 것**입니다. 사용자에게 먼저 권하지 마세요.
+`/쇼츠` 가 못 하는 일이 생겼을 때만 꺼내 씁니다.
 
 ## 테스트
 

@@ -1,15 +1,14 @@
 """shortsforge 커맨드라인.
 
-    shortsforge ingest 영상.mp4               영상 투입 → 작업 폴더 생성
-    shortsforge scan                          inbox/ 의 새 영상 전부 투입
-    shortsforge init "무선 핸디 청소기"      영상 없이 작업 폴더만
-    shortsforge status [이름]                 어디까지 왔나
-    shortsforge next 이름                     다음에 돌릴 에이전트 알려주기
-    shortsforge check 이름                    산출물 검증
-    shortsforge brief 이름                    reelforge 브리프 생성
-    shortsforge prompts                       프롬프트 슬롯 채움 현황
-    shortsforge prompt 4 --name 이름          그 단계의 완성된 프롬프트 출력
-    shortsforge queue add/list/take/mark      무한 생성용 시드 큐
+거의 이 셋만 씁니다:
+
+    shortsforge                 지금 상황 (인자 없이)
+    shortsforge scan            inbox/ 의 새 영상 → 작업 폴더
+    shortsforge brief 이름      reelforge 브리프 생성
+
+나머지는 에이전트가 알아서 부르거나, 가끔 손으로 확인할 때 씁니다:
+`ingest` `init` `status` `next` `check` `prompts` `prompt` `queue` `stages`.
+실제 제작은 클로드 코드에서 `/쇼츠` 로 합니다.
 """
 
 from __future__ import annotations
@@ -23,7 +22,7 @@ from .brief import write_brief
 from .ingest import find_new_videos, ingest
 from .queue import DONE, FAILED, PENDING, Seed, SeedQueue
 from .prompts import PromptError, is_empty, read_slot, resolve
-from .schema import validate
+from .schema import blocking_only, validate, warnings_only
 from .stages import PIPELINE, STAGES, stage_by_id
 from .workspace import Workspace, WorkspaceError, WORK_ROOT
 
@@ -41,6 +40,10 @@ def _ok(text: str) -> str:
 
 def _bad(text: str) -> str:
     return f"{RED}✘{RESET} {text}"
+
+
+def _warn(text: str) -> str:
+    return f"{YELLOW}!{RESET} {text}"
 
 
 def _wait(text: str) -> str:
@@ -73,7 +76,13 @@ def _status_one(ws: Workspace) -> None:
         label = f"{stage.order}. {stage.title} ({stage.slug})"
         if stage.slug in done:
             problems = validate(stage, ws.load(stage))
-            print("  " + (_ok(label) if not problems else _bad(f"{label} — 검증 실패 {len(problems)}건")))
+            stops, notes = blocking_only(problems), warnings_only(problems)
+            if stops:
+                print("  " + _bad(f"{label} — 다시 만들어야 함 {len(stops)}건"))
+            elif notes:
+                print("  " + _warn(f"{label} — 아쉬운 곳 {len(notes)}군데"))
+            else:
+                print("  " + _ok(label))
         elif all(dep in done for dep in stage.needs):
             print("  " + _wait(f"{label}  ← 다음 차례"))
         else:
@@ -129,27 +138,36 @@ def cmd_check(args) -> int:
         return 1
 
     stages = [stage_by_id(args.stage)] if args.stage else list(PIPELINE)
-    failed = 0
+    blocked = 0
     for stage in stages:
         if not ws.is_done(stage):
             if args.stage:
                 print(_bad(f"{stage.filename} 이 아직 없습니다"))
-                failed += 1
+                blocked += 1
             continue
         try:
             problems = validate(stage, ws.load(stage))
         except WorkspaceError as exc:
             print(_bad(str(exc)))
-            failed += 1
+            blocked += 1
             continue
-        if problems:
-            failed += 1
+
+        stops = blocking_only(problems)
+        notes = warnings_only(problems)
+        if stops:
+            blocked += 1
             print(_bad(stage.title))
-            for problem in problems:
-                print(f"    {problem}")
+        elif notes:
+            print(_warn(f"{stage.title} — 쓸 수 있지만 아쉬운 곳 {len(notes)}군데"))
         else:
             print(_ok(stage.title))
-    return 1 if failed else 0
+        for problem in stops:
+            print(f"    {problem}")
+        for problem in notes:
+            print(f"{DIM}    {problem}{RESET}")
+
+    # 경고는 종료 코드를 더럽히지 않는다. 멈출 이유가 아니기 때문.
+    return 1 if blocked else 0
 
 
 def cmd_brief(args) -> int:
@@ -286,7 +304,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="shortsforge", description="쇼핑쇼츠 기획 파이프라인")
     parser.add_argument("--version", action="version", version=f"shortsforge {__version__}")
     parser.add_argument("--root", default=str(WORK_ROOT), help="작업 폴더 루트 (기본: work)")
-    sub = parser.add_subparsers(dest="command", required=True)
+    # 인자 없이 치면 상태를 보여준다. 제일 자주 궁금한 게 그거라서.
+    sub = parser.add_subparsers(dest="command", required=False)
 
     p = sub.add_parser("init", help="새 쇼츠 작업 폴더 만들기")
     p.add_argument("name")
@@ -350,6 +369,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if not getattr(args, "func", None):
+        args.name = None
+        return cmd_status(args)
     return args.func(args)
 
 
