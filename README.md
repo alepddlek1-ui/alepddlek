@@ -96,12 +96,13 @@ cut:
 대본·훅·자막 키워드를 채워주는 담당이 `.claude/` 에 들어있습니다. 제품 사진이나 특징, 참고할 대본을 던지면
 20초 쇼핑 쇼츠 대본과 함께 **이 브리프를 채운 YAML** 을 그대로 내줍니다.
 
+- 분석 담당: `.claude/skills/shopping-shorts-analyst/` (상품 분석 · 후킹 포인트 8개 · 경쟁 영상 분해) → `.claude/agents/shorts-analyst.md`
 - 리서치 담당: `.claude/skills/shopping-shorts-researcher/` (샤오홍슈·TikTok 검색어 · 한중영 대응 사전) → `.claude/agents/shorts-researcher.md`
 - 대본 담당: `.claude/skills/shopping-shorts-writer/` (페르소나 · 훅 공식 · 20초 비트 · 과장 금지 규정) → `.claude/agents/shorts-writer.md`
 - 마케팅 담당: `.claude/skills/shopping-shorts-marketer/` (썸네일 문구 · 검색 캡션 · 해시태그 · 댓글 유도) → `.claude/agents/shorts-marketer.md`
 - 브리프 서식: `.claude/skills/shopping-shorts-writer/templates/brief.template.yaml`
 
-리서치 담당이 해외에서 먹힌 각을 찾아오고, 대본 담당이 영상을 만들 브리프를, 마케팅 담당이 그 영상을 올릴 문구를 채웁니다.
+리서치 담당이 해외에서 먹힌 각을 찾아오고, 분석 담당이 그 이유와 후킹 포인트를 근거로 만들고, 대본 담당이 영상을 만들 브리프를, 마케팅 담당이 그 영상을 올릴 문구를 채웁니다.
 
 ---
 
