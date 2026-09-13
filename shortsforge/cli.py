@@ -19,7 +19,7 @@ from pathlib import Path
 
 from . import __version__
 from .brief import write_brief
-from .ingest import find_new_videos, ingest
+from .ingest import find_new_videos, ingest, start
 from .queue import DONE, FAILED, PENDING, Seed, SeedQueue
 from .prompts import PromptError, is_empty, read_slot, resolve
 from .schema import blocking_only, validate, warnings_only
@@ -208,6 +208,30 @@ def cmd_ingest(args) -> int:
     return 0
 
 
+def cmd_start(args) -> int:
+    """영상·링크·상품명 아무거나 받아 작업 폴더 하나로 만든다.
+
+    마지막 줄에 폴더 이름만 찍는다. 에이전트가 그대로 받아쓴다.
+    """
+    try:
+        ws, how = start(args.tokens, root=Path(args.root),
+                        category=args.category or "", force=args.force)
+    except WorkspaceError as exc:
+        print(_bad(str(exc)))
+        return 1
+    print(_ok(how))
+    missing = []
+    body = ws.input_path.read_text(encoding="utf-8")
+    if 'video: ""' in body:
+        missing.append("영상 없음 — 대본까지는 나옵니다")
+    if 'url: ""' in body:
+        missing.append("상품 링크 없음 — 분석이 추측으로 갑니다")
+    for note in missing:
+        print(f"{DIM}  {note}{RESET}")
+    print(ws.name)
+    return 0
+
+
 def cmd_scan(args) -> int:
     """inbox/ 에 새로 들어온 영상을 전부 작업 폴더로 만든다."""
     root = Path(args.root)
@@ -321,6 +345,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--category")
     p.add_argument("--force", action="store_true")
     p.set_defaults(func=cmd_ingest)
+
+    p = sub.add_parser("start", help="영상·링크·상품명 아무거나 → 작업 폴더")
+    p.add_argument("tokens", nargs="*", help="영상 경로 · 상품 링크 · 상품명 (순서 무관)")
+    p.add_argument("--category")
+    p.add_argument("--force", action="store_true")
+    p.set_defaults(func=cmd_start)
 
     p = sub.add_parser("scan", help="inbox/ 의 새 영상 전부 투입")
     p.add_argument("--inbox", default="inbox")

@@ -12,7 +12,7 @@ import json
 import pytest
 
 from shortsforge.brief import build_brief, write_brief
-from shortsforge.ingest import ingest
+from shortsforge.ingest import ingest, start
 from shortsforge.prompts import PromptError, is_empty, resolve, substitute
 from shortsforge.queue import DONE, PENDING, Seed, SeedQueue
 from shortsforge.schema import blocking_only, validate, warnings_only
@@ -103,6 +103,48 @@ def test_ingest_rejects_non_video(tmp_path):
     doc.write_text("x", encoding="utf-8")
     with pytest.raises(WorkspaceError, match="영상 파일이 아닌"):
         ingest(doc, root=tmp_path / "work")
+
+
+def test_start_takes_video_and_link_in_any_order(tmp_path):
+    """사람은 "이거 링크랑 영상" 이라고 던지지, 인자 순서를 맞춰주지 않는다."""
+    video = tmp_path / "장갑.mp4"
+    video.write_bytes(b"\x00" * 16)
+    url = "https://www.coupang.com/vp/products/123"
+
+    ws, _ = start([url, str(video), "실리콘 주방장갑"], root=tmp_path / "work")
+    body = ws.input_path.read_text(encoding="utf-8")
+
+    assert ws.name == "실리콘-주방장갑"
+    assert str(video.resolve()) in body
+    assert url in body
+
+
+def test_start_works_with_a_link_alone(tmp_path):
+    """촬영 전에 기획만 먼저 돌리는 경우."""
+    ws, how = start(["https://www.coupang.com/vp/products/999"], root=tmp_path / "work")
+    assert "영상 없이" in how
+    assert ws.next_stage().slug == "shorts-product"
+
+
+def test_start_resumes_an_existing_workspace(tmp_path):
+    root = tmp_path / "work"
+    first, _ = start(["무선 청소기"], root=root)
+    again, how = start(["무선 청소기"], root=root)
+    assert again.root == first.root
+    assert "이어서" in how
+
+
+def test_start_fills_in_a_link_given_later(tmp_path):
+    """영상만 주고 시작했다가 나중에 링크를 줄 수 있다."""
+    root = tmp_path / "work"
+    start(["무선 청소기"], root=root)
+    ws, _ = start(["무선 청소기", "https://shop/xyz"], root=root)
+    assert "https://shop/xyz" in ws.input_path.read_text(encoding="utf-8")
+
+
+def test_start_needs_something(tmp_path):
+    with pytest.raises(WorkspaceError, match="하나는 필요합니다"):
+        start([], root=tmp_path / "work")
 
 
 # --------------------------------------------------------------------------- #

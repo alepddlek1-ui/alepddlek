@@ -88,3 +88,72 @@ def find_new_videos(inbox: Path, root: Path) -> list[Path]:
         for p in inbox.iterdir()
         if p.is_file() and p.suffix.lower() in VIDEO_SUFFIXES and slugify(p.stem) not in taken
     )
+
+
+def looks_like_url(token: str) -> bool:
+    return token.startswith(("http://", "https://"))
+
+
+def looks_like_video(token: str) -> bool:
+    return Path(token).expanduser().suffix.lower() in VIDEO_SUFFIXES
+
+
+def start(
+    tokens: list[str],
+    *,
+    root: Path | None = None,
+    category: str = "",
+    force: bool = False,
+) -> tuple[Workspace, str]:
+    """받은 게 무엇이든 작업 폴더 하나로 만든다.
+
+    영상 경로 · 상품 링크 · 상품명 · 이미 있는 폴더 이름을 섞어서 줘도 된다.
+    사람은 "이거 링크랑 영상" 이라고 던지지, 인자 순서를 맞춰주지 않는다.
+
+    돌려주는 두 번째 값은 무슨 일이 있었는지 한 줄 설명.
+    """
+    video = next((t for t in tokens if looks_like_video(t)), "")
+    url = next((t for t in tokens if looks_like_url(t) and not looks_like_video(t)), "")
+    rest = [t for t in tokens if t not in (video, url)]
+    label = " ".join(rest).strip()
+
+    base = root or WORK_ROOT
+
+    # 이미 있는 작업 폴더를 부른 것이라면 이어서 한다.
+    if label and (base / slugify(label)).is_dir() and not force:
+        ws = Workspace.open(label, root=base)
+        if url or video:
+            _patch_input(ws, url=url, video=video)
+            return ws, f"{ws.name} 이어서 (새 정보 반영)"
+        return ws, f"{ws.name} 이어서"
+
+    if video:
+        ws = ingest(video, name=label, root=base, product_url=url,
+                    category=category, force=force)
+        return ws, f"{ws.name} 새로 시작 (영상 + {'링크' if url else '링크 없음'})"
+
+    if not label and url:
+        # 링크만 왔다. 이름은 나중에 상품 분석이 제대로 채운다.
+        label = url.rstrip("/").split("/")[-1][:40] or "새-상품"
+
+    if not label:
+        raise WorkspaceError(
+            "영상·상품 링크·상품명 중 하나는 필요합니다.\n"
+            "  예: shortsforge start 영상.mp4 https://상품페이지"
+        )
+
+    ws = Workspace.create(label, root=base, product_url=url,
+                          category=category, force=force)
+    return ws, f"{ws.name} 새로 시작 (영상 없이 기획만)"
+
+
+def _patch_input(ws: Workspace, *, url: str = "", video: str = "") -> None:
+    """이미 있는 작업 폴더에 나중에 받은 링크·영상을 끼워넣는다."""
+    body = ws.input_path.read_text(encoding="utf-8")
+    if url and 'url: ""' in body:
+        body = body.replace('url: ""', f'url: "{url}"', 1)
+    if video:
+        resolved = str(Path(video).expanduser().resolve())
+        if 'video: ""' in body:
+            body = body.replace('video: ""', f'video: "{resolved}"', 1)
+    ws.input_path.write_text(body, encoding="utf-8")
