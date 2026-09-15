@@ -60,6 +60,14 @@ claude
 
 사진은 `input\photos\`, 영상은 `input\videos\` 에 넣고 `/write` 하면 됩니다.
 
+### 최신 버전 받기
+
+```cmd
+update.cmd
+```
+`scripts\`, `CLAUDE.md`, `.claude\`, `tests\`, `drafts\*.json` 을 최신으로 덮어씁니다.
+**`data\` 폴더(내 블로그 정보)와 사진·영상은 건드리지 않습니다.**
+
 ### 스크립트 직접 실행
 ```cmd
 node scripts\naver_draft.js drafts\2026-09-15-example.json --dry-run   :: 저장 안 함(셀렉터 점검)
