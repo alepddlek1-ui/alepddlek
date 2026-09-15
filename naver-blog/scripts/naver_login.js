@@ -7,7 +7,9 @@
  *
  *   node scripts/naver_login.js
  */
-const { launch, isLoggedIn, log, PROFILE_DIR, WRITE_URL, verifyGuard } = require('./lib/browser');
+const { launch, isLoggedIn, log, PROFILE_DIR, WRITE_URL, verifyGuard, parseFlags } = require('./lib/browser');
+
+const flags = parseFlags(process.argv);
 
 const LOGIN_URL = 'https://nid.naver.com/nidlogin.login?mode=form&url=https%3A%2F%2Fwww.naver.com';
 const TIMEOUT_MS = 10 * 60 * 1000; // 10분
@@ -62,12 +64,24 @@ const TIMEOUT_MS = 10 * 60 * 1000; // 10분
     await verifyGuard(page).catch((e) => log.warn(e.message));
 
     log.ok(`글쓰기 페이지 접근 OK — ${page.url()}`);
+
+    // 세션이 디스크에 확실히 기록되도록 잠깐 기다린 뒤 닫는다
+    const names = (await context.cookies('https://blog.naver.com')).map((c) => c.name);
+    log.info(`저장된 인증 쿠키: ${names.filter((n) => n.startsWith('NID')).join(', ') || '(없음)'}`);
+    await page.waitForTimeout(3000);
+
     log.ok(`세션 저장 완료: ${PROFILE_DIR}`);
-    console.log('\n  ❗ naver-profile/ 폴더는 로그인 세션입니다. 외부 공유·커밋 금지.\n');
+    console.log('\n  이 창은 이제 자동으로 닫힙니다. 정상입니다.');
+    console.log('  다음 실행부터는 로그인 화면이 뜨지 않습니다.');
+    console.log('  ❗ naver-profile/ 폴더는 로그인 세션입니다. 외부 공유·커밋 금지.\n');
   } catch (err) {
     log.fail(err.message);
     process.exitCode = 1;
   } finally {
-    await context.close().catch(() => {});
+    if (flags.keepOpen) {
+      log.warn('--keep-open: 브라우저를 열어 둡니다. 확인 후 창을 직접 닫으세요.');
+    } else {
+      await context.close().catch(() => {});
+    }
   }
 })();
