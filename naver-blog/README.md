@@ -74,6 +74,8 @@ node scripts\naver_draft.js drafts\2026-09-15-example.json --dry-run   :: 저장
 node scripts\naver_draft.js drafts\2026-09-15-example.json             :: 임시저장
 node scripts\probe_selectors.js                                        :: 셀렉터 실측(읽기 전용)
 node scripts\mosaic.js drafts\mosaic-spec.json                         :: 모자이크(원본 보존)
+node scripts\make_cards.js drafts\cards-example.json                   :: 정리 이미지 생성
+node scripts\lint_draft.js drafts\2026-09-15-example.json              :: 초안 검수(숫자 대조)
 npm test                                                               :: 자가 검증
 ```
 
