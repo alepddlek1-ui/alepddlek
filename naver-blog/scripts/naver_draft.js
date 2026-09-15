@@ -14,6 +14,16 @@ const path = require('path');
 const B = require('./lib/browser');
 const { log } = B;
 
+/* ══ 실행 로그를 파일로도 남긴다 (사용자가 캡처 없이 파일만 보내면 되게) ══ */
+const LOG_LINES = [];
+for (const m of ['log', 'warn', 'error']) {
+  const orig = console[m].bind(console);
+  console[m] = (...args) => {
+    LOG_LINES.push(args.map((a) => (typeof a === 'string' ? a : String(a))).join(' '));
+    orig(...args);
+  };
+}
+
 /* ══ 자동 처리 결과 집계 ══════════════════════════════════ */
 const RESULT = {
   photos: { total: 0, ok: 0, fail: [] },
@@ -192,8 +202,20 @@ async function setFontSize(frame, page, code = 'fs19', label = '19') {
 }
 
 /* ══ 블록 삽입 ═══════════════════════════════════════════ */
-async function insertTextBlock(frame, page, text, addTrailingEnter) {
+// 소제목 뒤 "본문 복귀"가 한 번이라도 실패하면 그 뒤 문단이 소제목 크기로 남는다.
+// 그래서 text 블록마다 서식과 크기를 명시적으로 다시 지정해 글 전체 폰트를 일정하게 유지한다.
+async function ensureBodyFormat(frame, page, fontSize) {
+  const cur = await frame.locator(FORMAT_BTN[0]).first().innerText().catch(() => '');
+  if (cur.replace(/\s+/g, '') !== '본문') {
+    const r = await setParagraphFormat(frame, page, '본문');
+    if (!r.ok) log.warn(`본문 서식 복귀 실패: ${r.reason}`);
+  }
+  if (fontSize) await setFontSize(frame, page, `fs${fontSize}`, String(fontSize));
+}
+
+async function insertTextBlock(frame, page, text, addTrailingEnter, fontSize) {
   await focusEnd(frame, page);
+  await ensureBodyFormat(frame, page, fontSize);
   const lines = String(text).split('\n');
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].trim()) await insertText(page, lines[i]);
@@ -283,12 +305,18 @@ async function insertImage(frame, page, block, idx) {
   const clicked = await clickFirst(frame, ['button.se-image-toolbar-button', '.se-image-toolbar-button']);
   if (!clicked) {
     RESULT.photos.fail.push(`${block.path} — 사진 버튼 없음`);
-    log.fail('사진 버튼을 찾지 못했습니다.');
+    log.fail('사진 버튼을 찾지 못했습니다. 실제 DOM 을 실측합니다.');
+    await dumpButtons(frame, 'image');
     return;
   }
   let chooser;
   try { chooser = await chooserPromise; }
-  catch { RESULT.photos.fail.push(`${block.path} — 파일선택창이 뜨지 않음`); return; }
+  catch {
+    RESULT.photos.fail.push(`${block.path} — 파일선택창이 뜨지 않음`);
+    log.fail('사진 버튼은 눌렸지만 파일 선택창이 열리지 않았습니다. 실제 DOM 을 실측합니다.');
+    await dumpButtons(frame, 'image');
+    return;
+  }
   await chooser.setFiles(block._abs);
 
   // 업로드 완료 대기
@@ -298,7 +326,17 @@ async function insertImage(frame, page, block, idx) {
     if ((await countImages(frame)) > before) { ok = true; break; }
     await page.waitForTimeout(700);
   }
-  if (!ok) { RESULT.photos.fail.push(`${block.path} — 업로드 확인 실패`); log.fail(`사진 업로드 확인 실패: ${block.path}`); return; }
+  if (!ok) {
+    RESULT.photos.fail.push(`${block.path} — 업로드 확인 실패`);
+    log.fail(`사진 업로드 확인 실패(2분 대기): ${block.path}`);
+    const seen = await frame.evaluate(() => ({
+      sectionImage: document.querySelectorAll('.se-section-image').length,
+      imgResource: document.querySelectorAll('img.se-image-resource').length,
+      anyImg: document.querySelectorAll('.se-component img').length,
+    })).catch(() => ({}));
+    log.info(`[실측] 이미지 요소 수: ${JSON.stringify(seen)}`);
+    return;
+  }
   await page.waitForTimeout(800);
   RESULT.photos.ok++;
   log.ok(`사진 ${idx + 1}: ${path.basename(block.path)}`);
@@ -309,6 +347,23 @@ async function insertImage(frame, page, block, idx) {
     if (done) RESULT.captions.ok++;
     else { RESULT.captions.fail.push(block.path); log.warn(`캡션 입력 실패(수동 필요): ${block.path}`); }
   }
+}
+
+/** 셀렉터가 실패했을 때, 추측하지 말고 그 자리에서 실제 버튼 목록을 로그에 남긴다 */
+async function dumpButtons(frame, hint) {
+  const list = await frame.evaluate(() => {
+    return Array.from(document.querySelectorAll('button')).map((el) => ({
+      cls: String(el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className || ''),
+      testid: el.getAttribute('data-testid') || '',
+      text: (el.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 24),
+      vis: !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
+    }));
+  }).catch(() => []);
+  const hit = list.filter((b) => (b.cls + b.text + b.testid).toLowerCase().includes(hint.toLowerCase()));
+  log.info(`[실측] "${hint}" 관련 버튼 ${hit.length}개 / 전체 ${list.length}개`);
+  (hit.length ? hit : list.filter((b) => b.vis).slice(0, 40)).forEach((b) => {
+    log.info(`   ${b.vis ? 'V' : ' '} "${b.text}" class="${b.cls}"${b.testid ? ` testid="${b.testid}"` : ''}`);
+  });
 }
 
 async function writeCaption(frame, page, caption) {
@@ -741,7 +796,7 @@ async function main() {
       const next = draft.blocks[i + 1];
 
       if (b.type === 'text') {
-        await insertTextBlock(frame, page, b.text, next && next.type === 'text');
+        await insertTextBlock(frame, page, b.text, next && next.type === 'text', draft.fontSize);
         if (!firstTextDone) {
           firstTextDone = true;
           // 동영상은 항상 첫 text 블록 직후
@@ -819,6 +874,14 @@ async function main() {
     console.log('  → 반복 실패 시 수동 붙여넣기용 원고를 출력하고, 원인·해결을 CLAUDE.md 「11. 문제 해결 기록」에 남기세요.\n');
     process.exitCode = 1;
   } finally {
+    try {
+      const logPath = `${draft._base}.log.txt`;
+      fs.writeFileSync(logPath, LOG_LINES.join('\n') + '\n', 'utf8');
+      console.log(`\n  실행 기록을 파일로 저장했습니다: ${path.relative(B.ROOT, logPath)}`);
+      console.log('  ❗문제가 있으면 이 파일을 그대로 보내주시면 됩니다. (캡처 안 하셔도 됩니다)\n');
+    } catch (e) {
+      console.error(`로그 파일 저장 실패: ${e.message}`);
+    }
     if (flags.keepOpen) {
       log.warn('--keep-open: 브라우저를 열어 둡니다. 창을 직접 닫으세요.');
     } else {
