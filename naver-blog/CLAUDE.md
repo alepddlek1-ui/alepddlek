@@ -18,6 +18,7 @@
 | 화자 톤 | 기자 같은 건조한 말투 (`data/blogger-profile.md`가 단일 기준) |
 | 협찬 | 원칙적으로 없음 (전부 자사·자비). 그래도 `/write`마다 1회 확인 |
 | 지도(place) | 이 주제에선 보통 불필요. 경기장·행사장 방문 후기처럼 실제로 다녀온 글에만 사용 |
+| 블로그 | https://blog.naver.com/issuenote1 (`issuenote1`) |
 | 실행 환경 | Windows / cmd |
 
 ---
