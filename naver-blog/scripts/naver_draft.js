@@ -702,8 +702,27 @@ async function main() {
     log.step('글쓰기 페이지로 이동합니다');
     await page.goto(B.WRITE_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForTimeout(3000);
+
+    // 로그인 화면으로 튕기면 바로 죽지 않고, 그 자리에서 로그인할 시간을 준다
     if (/nid\.naver\.com/.test(page.url())) {
-      throw new Error('로그인이 필요합니다. 먼저 `node scripts/naver_login.js` 를 실행하세요.');
+      log.warn('로그인 세션이 없거나 만료됐습니다.');
+      console.log('\n' + '─'.repeat(64));
+      console.log('  지금 열려 있는 브라우저 창에서 직접 로그인해 주세요.');
+      console.log('  (아이디·비밀번호는 받지도 저장하지도 않습니다)');
+      console.log('  로그인이 확인되면 창을 닫지 말고 그대로 두시면 자동으로 이어서 진행합니다.');
+      console.log('  최대 5분 기다립니다.');
+      console.log('─'.repeat(64) + '\n');
+
+      const loggedIn = await B.waitForLogin(page, 5);
+      if (!loggedIn) {
+        throw new Error('5분 안에 로그인이 확인되지 않았습니다. `node scripts/naver_login.js` 를 먼저 실행해 주세요.');
+      }
+      log.ok('로그인 확인 — 글쓰기 페이지로 다시 이동합니다');
+      await page.goto(B.WRITE_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForTimeout(3000);
+      if (/nid\.naver\.com/.test(page.url())) {
+        throw new Error('로그인 후에도 글쓰기 페이지 접근이 막혔습니다. naver-profile 폴더를 지우고 다시 시도해 주세요.');
+      }
     }
 
     frame = await B.getEditorFrame(page);

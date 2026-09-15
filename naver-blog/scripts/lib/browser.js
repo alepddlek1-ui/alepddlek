@@ -125,6 +125,21 @@ async function isLoggedIn(page) {
   return cookies.some((c) => c.name === 'NID_AUT' || c.name === 'NID_SES');
 }
 
+/** 사용자가 브라우저에서 직접 로그인할 때까지 기다린다(비밀번호는 받지 않는다) */
+async function waitForLogin(page, minutes = 5) {
+  const deadline = Date.now() + minutes * 60 * 1000;
+  let dots = 0;
+  while (Date.now() < deadline) {
+    if (await isLoggedIn(page).catch(() => false)) return true;
+    await page.waitForTimeout(2000);
+    if (++dots % 15 === 0) {
+      const left = Math.ceil((deadline - Date.now()) / 60000);
+      log.info(`로그인 대기 중... (남은 시간 약 ${left}분)`);
+    }
+  }
+  return false;
+}
+
 /* ── 에디터 프레임 ─────────────────────────────────────── */
 /** 에디터는 iframe#mainFrame 안에 있다. 프레임이 없으면 페이지 자체가 에디터다. */
 async function getEditorFrame(page, { timeout = 30000 } = {}) {
@@ -203,6 +218,7 @@ module.exports = {
   blockedCount,
   launch,
   isLoggedIn,
+  waitForLogin,
   getEditorFrame,
   dismissStartupPopups,
   dimLayerPresent,
