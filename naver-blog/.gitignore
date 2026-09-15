@@ -1,0 +1,14 @@
+node_modules/
+
+# 로그인 세션 — 절대 커밋/공유 금지
+naver-profile/
+
+# 사용자 사진·영상 원본과 모자이크 처리본
+input/photos/*
+input/videos/*
+!input/photos/.gitkeep
+!input/videos/.gitkeep
+
+# 초안·검증 산출물
+drafts/*
+!drafts/.gitkeep

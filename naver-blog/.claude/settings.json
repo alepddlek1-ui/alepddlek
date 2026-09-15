@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(./**)",
+      "Write(./**)",
+      "Edit(./**)",
+      "Glob(./**)",
+      "Grep(./**)",
+      "Bash(node scripts/naver_login.js:*)",
+      "Bash(node scripts/naver_draft.js:*)",
+      "Bash(node scripts/probe_selectors.js:*)",
+      "Bash(node scripts/mosaic.js:*)",
+      "Bash(node --check:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(npx playwright install chromium)",
+      "Bash(dir:*)",
+      "Bash(ls:*)",
+      "Bash(type:*)",
+      "Bash(cat:*)",
+      "Bash(mkdir:*)",
+      "Bash(copy:*)",
+      "Bash(cp:*)"
+    ],
+    "deny": [
+      "Read(./naver-profile/**)",
+      "Bash(git push:*)"
+    ]
+  }
+}
