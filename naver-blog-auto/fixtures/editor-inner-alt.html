@@ -1,0 +1,236 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>스마트에디터 흉내 — 본문 셀렉터가 다른 환경</title>
+<style>
+  body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#fff}
+  .se-toolbar{position:sticky;top:0;background:#f5f5f5;border-bottom:1px solid #ddd;padding:6px;display:flex;gap:4px;flex-wrap:wrap;z-index:5}
+  .se-toolbar button{font-size:12px;padding:4px 8px}
+  .se-canvas{padding:16px 24px 40px}
+  .se-section-documentTitle{border-bottom:1px solid #eee;padding:8px 0;margin-bottom:12px}
+  .se-section-documentTitle .se-text-paragraph{font-size:22px;font-weight:700;min-height:32px;outline:none}
+  .se-content{min-height:400px}
+  .se-component{margin:6px 0}
+  .se-component .se-text-paragraph{min-height:22px;outline:none;line-height:1.7}
+  .se-component.se-quote .se-text-paragraph{border-left:4px solid #333;padding-left:10px;font-style:italic}
+  .se-component.se-sectionTitle .se-text-paragraph{font-size:18px;font-weight:700}
+  .se-component.se-horizontalLine hr{border:0;border-top:2px solid #333;margin:14px 0}
+  .se-component.se-image img{max-width:320px;display:block}
+  /* ⚠️ 7-18 — 업로드 직후 캡션 칸은 0×0 이다. se-is-on 이 붙어야 펼쳐진다. */
+  .se-caption{height:0;width:0;overflow:hidden;outline:none;color:#888;font-size:13px}
+  .se-caption.se-is-on{height:auto;width:auto;overflow:visible;min-height:20px;padding:4px 0}
+  /* ⚠️ 7-3 — 복원 팝업의 반투명 차단막. 남아 있으면 클릭이 조용히 무시된다. */
+  .se-popup-dim{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50}
+  .se-popup-container{position:fixed;left:50%;top:32%;transform:translateX(-50%);background:#fff;border:1px solid #999;padding:20px;z-index:51}
+  /* ⚠️ 7-4 — 도움말 패널이 우측을 덮는다. */
+  .se-help-container{position:fixed;right:0;top:0;width:300px;height:100%;background:#eef;border-left:1px solid #99f;z-index:40;padding:12px}
+  /* ⚠️ 7-21 — 사진을 넣으면 우측 라이브러리 도크가 자동으로 열린다(별개 계열). */
+  .se-sidebar{position:fixed;right:0;top:105px;width:300px;height:795px;background:#efe;border-left:1px solid #9c9;z-index:41;padding:12px}
+  /* ⚠️ 7-6 — 화면 맨 아래 글감 검색바. 여기로 타이핑이 샌다. */
+  .se-flayer-unified-toolbar-wrapper{position:fixed;left:0;right:0;bottom:0;background:#333;color:#fff;padding:10px;z-index:30}
+  .se-flayer-unified-search-input{width:60%;padding:6px}
+  .hidden{display:none !important}
+</style>
+
+<div class="se-toolbar">
+  <button class="se-text-format-toolbar-button">문단서식</button>
+  <span id="fmtMenu" class="hidden">
+    <button class="se-toolbar-option-text-format-sectionTitle-button">소제목</button>
+    <button class="se-toolbar-option-text-format-text-button">본문</button>
+    <button class="se-toolbar-option-text-format-quotation-button">인용구</button>
+  </span>
+  <button class="se-bold-toolbar-button">굵게</button>
+  <button class="se-background-color-toolbar-button">배경색</button>
+  <span id="colorMenu" class="hidden">
+    <button title="#fff8b2">노랑</button>
+    <button class="se-color-palette-no-color">없음</button>
+  </span>
+  <button class="se-insert-horizontal-line-default-toolbar-button">구분선</button>
+  <button class="se-image-toolbar-button">사진</button>
+  <!-- ⚠️ 7-1 — 이 두 버튼이 나란히 있는 것이 핵심이다.
+       `button:has-text('취소')` 는 부분일치라 '취소선'까지 누른다. -->
+  <button id="strikeBtn" class="se-strikethrough-toolbar-button">취소선</button>
+  <button class="se-quote-insert-button">인용구삽입</button>
+</div>
+
+<div class="se-canvas">
+  <div class="se-section-documentTitle">
+    <div class="se-text-paragraph" contenteditable="true" id="titleEl"></div>
+  </div>
+  <div class="se-content" id="content"></div>
+</div>
+
+<!-- 복원 팝업 -->
+<div class="se-popup-dim" id="dim"></div>
+<div class="se-popup-container" id="popup">
+  <p>작성 중인 글이 있습니다. 이어서 쓰시겠습니까?</p>
+  <button class="se-popup-button-cancel">취소</button>
+  <button class="se-popup-button-confirm">확인</button>
+</div>
+
+<!-- 도움말 패널 -->
+<div class="se-help-container" id="help">
+  <div class="se-help-header"><button class="se-help-panel-close-button">닫기</button></div>
+  도움말
+</div>
+
+<!-- 우측 라이브러리 도크(사진 넣으면 열림) -->
+<aside class="se-sidebar se-sidebar-interaction hidden" id="sidebar">
+  <div class="se-sidebar-container se-sidebar-container-library">
+    <button class="se-sidebar-close-button">팝업 닫기</button>
+    라이브러리
+  </div>
+</aside>
+
+<!-- 하단 글감 검색바 -->
+<div class="se-flayer-unified-toolbar-wrapper">
+  <div class="se-flayer-unified-toolbar se-flayer-unified-toolbar--expanded">
+    <input class="se-flayer-unified-search-input" placeholder="글감 검색">
+  </div>
+</div>
+
+<input type="file" id="fileInput" class="hidden" accept="image/*">
+
+<script>
+// ── 계측: 무엇이 몇 번 눌렸는지, 어디로 타이핑이 갔는지 ──────────────
+const M = window.__metrics = {
+  strikeClicks: 0,          // 7-1 — 0 이어야 한다
+  boldClicks: 0, highlightOn: 0, highlightOff: 0,
+  quoteApplied: 0, headingApplied: 0, bodyApplied: 0, dividers: 0,
+  imagesInserted: 0, captionsTyped: 0,
+  searchBarText: "",        // 7-6 — 비어 있어야 한다
+  titleText: "",            // 7-26 — 제목만 들어 있어야 한다
+  fileChooserOpened: 0,     // 7-7
+};
+document.getElementById("strikeBtn").addEventListener("click", () => M.strikeClicks++);
+
+// 8-5 도구상자 — 탈출 클릭이 "실제로 무엇을" 눌렀는지 좌표와 함께 기록한다.
+M.clicks = [];
+document.addEventListener("click", (e) => {
+  const t = e.target;
+  M.clicks.push({
+    x: e.clientX, y: e.clientY,
+    tag: t.tagName,
+    cls: typeof t.className === "string" ? t.className : "",
+    inComponent: !!t.closest(".se-component"),
+    inCaption: !!t.closest(".se-caption"),
+  });
+}, true);
+
+const $ = (s) => document.querySelector(s);
+const content = $("#content");
+let current = null;   // 현재 입력 중인 문단
+
+// 실제 에디터의 중첩 구조를 그대로 흉내 낸다.
+// se-component > se-section-text > se-module-text > se-text-paragraph
+// (7장 body 후보가 `.se-section-text .se-text-paragraph` 이므로 이 껍데기가 없으면
+//  하네스가 본문을 못 찾아 7-26 가드가 발동한다 — 실제로 처음에 그렇게 나왔다)
+function newParagraph(kind) {
+  const comp = document.createElement("div");
+  comp.className = "se-component se-text se-l-default " + (kind ? "se-" + kind : "");
+  const section = document.createElement("div");
+  section.className = "se-xx-body-area";
+  const module = document.createElement("div");
+  module.className = "se-xx-mod";
+  const p = document.createElement("div");
+  p.className = "se-text-paragraph";
+  p.contentEditable = "true";
+  module.appendChild(p);
+  section.appendChild(module);
+  comp.appendChild(section);
+  content.appendChild(comp);
+  current = p;
+  return p;
+}
+newParagraph();
+
+// 본문 첫 문단이 없으면 만들어 주는 편의(실제 에디터도 빈 문단 하나로 시작한다)
+function ensureCurrent() { if (!current || !current.isConnected) newParagraph(); return current; }
+
+// 팝업 닫기
+$(".se-popup-button-cancel").addEventListener("click", () => {
+  $("#popup").remove(); $("#dim").remove();          // 차단막까지 같이 제거(7-3)
+});
+$(".se-help-panel-close-button").addEventListener("click", () => $("#help").remove());
+$(".se-sidebar-close-button").addEventListener("click", () => $("#sidebar").classList.add("hidden"));
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { $("#help")?.remove(); $("#sidebar")?.classList.add("hidden"); }
+});
+
+// 문단서식 드롭다운
+$(".se-text-format-toolbar-button").addEventListener("click", () => $("#fmtMenu").classList.toggle("hidden"));
+$(".se-toolbar-option-text-format-quotation-button").addEventListener("click", () => {
+  M.quoteApplied++; ensureCurrent().parentElement.classList.add("se-quote"); $("#fmtMenu").classList.add("hidden");
+});
+$(".se-toolbar-option-text-format-sectionTitle-button").addEventListener("click", () => {
+  M.headingApplied++; ensureCurrent().parentElement.classList.add("se-sectionTitle"); $("#fmtMenu").classList.add("hidden");
+});
+$(".se-toolbar-option-text-format-text-button").addEventListener("click", () => {
+  M.bodyApplied++; ensureCurrent().parentElement.classList.remove("se-sectionTitle","se-quote"); $("#fmtMenu").classList.add("hidden");
+});
+
+// 굵게 / 형광펜 — 실제 서식은 흉내 내지 않는다(하네스 한계). 눌린 횟수만 센다.
+$(".se-bold-toolbar-button").addEventListener("click", () => M.boldClicks++);
+$(".se-background-color-toolbar-button").addEventListener("click", () => $("#colorMenu").classList.toggle("hidden"));
+$("[title='#fff8b2']").addEventListener("click", () => { M.highlightOn++; $("#colorMenu").classList.add("hidden"); });
+$(".se-color-palette-no-color").addEventListener("click", () => { M.highlightOff++; $("#colorMenu").classList.add("hidden"); });
+
+// 구분선
+$(".se-insert-horizontal-line-default-toolbar-button").addEventListener("click", () => {
+  M.dividers++;
+  const comp = document.createElement("div");
+  comp.className = "se-component se-horizontalLine";
+  comp.innerHTML = "<hr>";
+  content.appendChild(comp);
+  current = null;   // 컴포넌트 안이라 키로는 탈출되지 않는다(7-5). 마우스 클릭으로만 빠져나온다.
+});
+
+// 사진 — 파일 선택창을 실제로 연다(7-7 재현)
+$(".se-image-toolbar-button").addEventListener("click", () => {
+  M.fileChooserOpened++;
+  $("#fileInput").click();
+});
+$("#fileInput").addEventListener("change", (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  M.imagesInserted++;
+  const comp = document.createElement("div");
+  comp.className = "se-component se-image";
+  const img = document.createElement("img");
+  img.src = URL.createObjectURL(f);
+  const cap = document.createElement("div");
+  // ⚠️ 7-18 — 업로드 직후에는 se-is-empty 만 있고 se-is-on 이 없다(0×0).
+  cap.className = "se-module se-module-text __se-unit se-is-empty se-caption";
+  cap.contentEditable = "true";
+  comp.appendChild(img); comp.appendChild(cap);
+  content.appendChild(comp);
+  current = null;
+  // 사진을 넣으면 우측 도크가 자동으로 열린다(7-21)
+  $("#sidebar").classList.remove("hidden");
+  // 이미지 컴포넌트를 클릭해야 캡션이 펼쳐진다
+  comp.addEventListener("click", () => cap.classList.add("se-is-on"));
+  cap.addEventListener("input", () => {
+    if (cap.textContent.trim()) cap.classList.remove("se-is-empty");
+    M.captionsTyped = document.querySelectorAll(".se-caption:not(.se-is-empty)").length;
+  });
+});
+
+// 본문 빈 곳(마지막 컴포넌트 아래) 클릭 → 새 문단 (7-5 의 유일한 탈출구)
+document.querySelector(".se-canvas").addEventListener("click", (e) => {
+  if (e.target.closest(".se-component") || e.target.closest(".se-section-documentTitle")) return;
+  newParagraph().focus();
+});
+
+// Enter 로 새 문단 (일반 문단 안에서만)
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  const a = document.activeElement;
+  if (a === $("#titleEl")) { e.preventDefault(); return; }   // ⚠️ 7-26 — 제목에서 Enter 는 본문으로 안 간다
+  if (a && a.classList.contains("se-text-paragraph") && !a.closest(".se-quote")) {
+    e.preventDefault();
+    newParagraph().focus();
+  }
+});
+
+$("#titleEl").addEventListener("input", () => { M.titleText = $("#titleEl").textContent; });
+$(".se-flayer-unified-search-input").addEventListener("input", (e) => { M.searchBarText = e.target.value; });
+</script>

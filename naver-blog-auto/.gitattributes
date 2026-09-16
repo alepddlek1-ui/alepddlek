@@ -1,0 +1,4 @@
+# 윈도우 배치파일은 반드시 CRLF 로 유지한다.
+# LF 로 바뀌면 윈도우에서 실행이 이상해질 수 있다.
+*.bat text eol=crlf
+*.command text eol=lf
