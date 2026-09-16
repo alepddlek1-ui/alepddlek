@@ -24,7 +24,14 @@ for (const m of ['log', 'warn', 'error']) {
   };
 }
 
-const BUILD = '2026-09-16.1';   // 로그만 보고도 어느 버전이 돌았는지 알 수 있게 한다
+const BUILD = '2026-09-16.3';   // 로그만 보고도 어느 버전이 돌았는지 알 수 있게 한다
+
+// 어딘가에서 await 되지 않은 promise 가 거부되면 Node 는 프로세스를 그냥 죽인다.
+// 그러면 본문을 절반만 쓴 채 제목·태그·임시저장이 통째로 날아간다. 죽지 말고 기록만 한다.
+process.on('unhandledRejection', (reason) => {
+  const m = String((reason && reason.message) || reason).split('\n')[0];
+  console.warn(`  ! 처리되지 않은 오류를 무시하고 계속합니다: ${m}`);
+});
 
 /* ══ 자동 처리 결과 집계 ══════════════════════════════════ */
 const RESULT = {
@@ -38,6 +45,8 @@ const RESULT = {
   video: { requested: false, ok: false, note: '해당 없음' },
   title: { ok: false, note: '' },
   save: { ok: false, note: '' },
+  blocks: { total: 0, ok: 0, fail: [] },
+  chars: { draft: 0, editor: 0 },
   verify: { ok: false, missing: [] },
 };
 
@@ -356,14 +365,24 @@ async function insertImage(frame, page, block, idx) {
   log.info(`사진 버튼: ${btn.how}`);
 
   // 1순위: 파일 선택창을 가로채는 정석 경로
+  // 주의: waitForEvent 의 promise 에 곧바로 catch 를 달아 둔다. 클릭이 먼저 실패하면
+  //       이 promise 가 나중에 홀로 거부되면서 프로세스를 죽인다(실제로 그렇게 죽었다).
   let delivered = false;
+  const chooserPromise = page.waitForEvent('filechooser', { timeout: 15000 }).catch(() => null);
   try {
-    const chooserPromise = page.waitForEvent('filechooser', { timeout: 15000 });
-    await btn.loc.click();
-    const chooser = await chooserPromise;
-    await chooser.setFiles(block._abs);
-    delivered = true;
-  } catch {
+    await btn.loc.click({ timeout: 10000 });
+  } catch (e) {
+    log.warn(`사진 버튼 클릭 실패: ${e.message.split('\n')[0]}`);
+  }
+  const chooser = await chooserPromise;
+  if (chooser) {
+    try {
+      await chooser.setFiles(block._abs);
+      delivered = true;
+    } catch (e) {
+      log.warn(`파일 전달 실패: ${e.message.split('\n')[0]}`);
+    }
+  } else {
     log.warn('파일 선택창이 열리지 않았습니다 → 숨은 파일 입력란에 직접 넣어봅니다.');
   }
 
@@ -484,13 +503,17 @@ async function insertVideo(frame, page, video) {
     return;
   }
 
+  const vChooser = page.waitForEvent('filechooser', { timeout: 20000 }).catch(() => null);
   try {
-    const chooserPromise = page.waitForEvent('filechooser', { timeout: 20000 });
-    await frame.locator('button.nvu_btn_append.nvu_local, .nvu_btn_append').first().click();
-    const chooser = await chooserPromise;
-    await chooser.setFiles(video._abs);
+    await frame.locator('button.nvu_btn_append.nvu_local, .nvu_btn_append').first().click({ timeout: 10000 });
   } catch (e) {
-    RESULT.video.note = `파일 선택 실패: ${e.message} — 수동 첨부 필요`;
+    log.warn(`"동영상 추가" 클릭 실패: ${e.message.split('\n')[0]}`);
+  }
+  const vFile = await vChooser;
+  if (vFile) {
+    await vFile.setFiles(video._abs).catch((e) => log.warn(`동영상 파일 전달 실패: ${e.message}`));
+  } else {
+    RESULT.video.note = '동영상 파일 선택창이 열리지 않음 — 수동 첨부 필요';
     log.fail(RESULT.video.note);
     await forceClosePopup(frame, page);
     return;
@@ -810,6 +833,9 @@ function printResult(dryRun, blocked) {
   console.log(`  동영상    ${RESULT.video.requested ? RESULT.video.note : '해당 없음'}`);
   console.log(`  제목      ${RESULT.title.note}`);
   console.log(`  임시저장  ${dryRun ? '건너뜀 (--dry-run)' : RESULT.save.note}`);
+  console.log(`  블록입력  ${RESULT.blocks.ok}/${RESULT.blocks.total}   ${mark(RESULT.blocks.ok === RESULT.blocks.total)}`);
+  RESULT.blocks.fail.forEach((f) => console.log(`             - ${f}`));
+  console.log(`  글자수    초안 ${RESULT.chars.draft}자 → 에디터 ${RESULT.chars.editor}자 ${RESULT.chars.editor < RESULT.chars.draft * 0.9 ? '❗본문이 잘렸습니다' : '✔'}`);
   console.log(`  전문대조  ${RESULT.verify.ok ? '✔ 초안과 일치' : `❗불일치 ${RESULT.verify.missing.length}건`}`);
   RESULT.verify.missing.slice(0, 20).forEach((m) => console.log(`             - ${m}`));
   console.log(`  발행가드  차단 ${blocked}회 (가드 정상 작동)`);
@@ -817,6 +843,18 @@ function printResult(dryRun, blocked) {
   console.log('  ❗수동 필요 항목만 사용자에게 안내하세요.');
   console.log('  ❗디버깅 재실행으로 네이버 "저장 글"에 실패본이 쌓였다면 직접 정리해 주세요.');
   console.log('═'.repeat(60) + '\n');
+}
+
+/* ══ 한 단계가 실패해도 저장까지는 반드시 가게 한다 ══════ */
+// 예전에는 블록 하나에서 예외가 나면 제목·태그·임시저장이 통째로 건너뛰어
+// "글은 반쯤 써졌는데 저장은 안 된" 상태가 됐다. 이제는 실패를 기록하고 계속 간다.
+async function safe(label, fn) {
+  try {
+    return await fn();
+  } catch (e) {
+    log.fail(`${label} 실패: ${e.message.split('\n')[0]}`);
+    return { __failed: true, error: e };
+  }
 }
 
 /* ══ 메인 ════════════════════════════════════════════════ */
@@ -876,44 +914,53 @@ async function main() {
       const b = draft.blocks[i];
       const next = draft.blocks[i + 1];
       log.info(`[${i + 1}/${draft.blocks.length}] ${b.type}${b.path ? ' ' + path.basename(b.path) : ''}`);
+      RESULT.blocks.total++;
 
-      if (b.type === 'text') {
-        await insertTextBlock(frame, page, b.text, next && next.type === 'text', draft.fontSize);
-        if (!firstTextDone) {
-          firstTextDone = true;
-          // 동영상은 항상 첫 text 블록 직후
-          if (draft.video && draft.video._abs) await insertVideo(frame, page, draft.video);
+      const r = await safe(`블록 ${i + 1} (${b.type})`, async () => {
+        if (b.type === 'text') {
+          await insertTextBlock(frame, page, b.text, next && next.type === 'text', draft.fontSize);
+          if (!firstTextDone) {
+            firstTextDone = true;
+            // 동영상은 항상 첫 text 블록 직후
+            if (draft.video && draft.video._abs) await insertVideo(frame, page, draft.video);
+          }
+        } else if (b.type === 'subtitle') {
+          await insertSubtitle(frame, page, b.text);
+        } else if (b.type === 'quote') {
+          await insertQuote(frame, page, b.text);
+        } else if (b.type === 'divider') {
+          await insertDivider(frame, page);
+        } else if (b.type === 'image') {
+          await insertImage(frame, page, b, i);
         }
-      } else if (b.type === 'subtitle') {
-        await insertSubtitle(frame, page, b.text);
-      } else if (b.type === 'quote') {
-        await insertQuote(frame, page, b.text);
-      } else if (b.type === 'divider') {
-        await insertDivider(frame, page);
-      } else if (b.type === 'image') {
-        await insertImage(frame, page, b, i);
-      }
+      });
+      if (r && r.__failed) RESULT.blocks.fail.push(`블록 ${i + 1} (${b.type}): ${r.error.message.split('\n')[0]}`);
+      else RESULT.blocks.ok++;
     }
 
     /* ── 지도는 글 맨 끝 ── */
-    if (draft.place && draft.place.query) await insertPlace(frame, page, draft.place);
+    if (draft.place && draft.place.query) {
+      await safe('지도 첨부', () => insertPlace(frame, page, draft.place));
+    }
 
     /* ── 본문 첫 줄 보정 ── */
     const firstText = draft.blocks.find((b) => b.type === 'text');
-    if (firstText) await ensureFirstLine(frame, page, String(firstText.text).split('\n')[0]);
+    if (firstText) {
+      await safe('본문 첫 줄 확인', () => ensureFirstLine(frame, page, String(firstText.text).split('\n')[0]));
+    }
 
     /* ── 제목은 맨 마지막 ── */
     log.step('제목을 입력합니다 (맨 마지막)');
-    await typeTitle(frame, page, draft.title);
+    await safe('제목 입력', () => typeTitle(frame, page, draft.title));
 
     /* ── 태그 (발행 패널 → Escape) ── */
     log.step('태그를 입력합니다');
-    await inputTags(frame, page, draft.tags);
+    await safe('태그 입력', () => inputTags(frame, page, draft.tags));
 
     /* ── 임시저장 ── */
     if (!flags.dryRun) {
       log.step('임시저장');
-      await saveDraft(frame, page);
+      await safe('임시저장', () => saveDraft(frame, page));
     } else {
       RESULT.save.note = '건너뜀 (--dry-run)';
     }
@@ -936,6 +983,10 @@ async function main() {
       ].join('\n'),
       'utf8'
     );
+    RESULT.chars.draft = draft.blocks
+      .filter((b) => b.type !== 'divider' && b.type !== 'image')
+      .map((b) => String(b.text || '')).join('').replace(/\n/g, '').length;
+    RESULT.chars.editor = [dump.title, ...dump.paragraphs, ...dump.quotes].join('').replace(/\s/g, '').length;
     RESULT.verify.missing = verifyAgainstDraft(draft, dump);
     RESULT.verify.ok = RESULT.verify.missing.length === 0;
     log.ok(`스크린샷: ${path.relative(B.ROOT, shot)}`);

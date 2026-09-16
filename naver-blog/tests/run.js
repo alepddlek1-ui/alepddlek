@@ -229,6 +229,34 @@ const tmp = (name, obj) => {
     }
   }
 
+  // 중간에 실패해도 임시저장까지는 반드시 가는지 (예전엔 통째로 건너뛰었다)
+  {
+    const label = '사진 버튼이 가려져 클릭이 실패해도 끝까지 진행된다 (죽지 않음)';
+    let res;
+    try { res = await runAgainstMock('?blockimage=1', label); }
+    catch (e) { res = null; console.log(`  ✘ ${label} → 실행 실패: ${e.message}`); fail++; }
+    if (res) {
+      const mustHave = [
+        ['프로세스가 죽지 않음', () => res.code === 0],
+        ['사진은 폴백으로 들어감', /사진\s+2\/2\s+✔/],
+        ['제목 입력됨', /제목\s+일치/],
+        ['태그 입력됨', /태그\s+3\/3/],
+        ['임시저장 실행됨', /임시저장\s+임시저장 클릭 완료/],
+        ['글자수 대조 출력됨', /글자수\s+초안/],
+        ['전문대조 일치', /전문대조\s+✔/],
+      ];
+      const bad = mustHave
+        .filter(([, chk]) => (typeof chk === 'function' ? !chk() : !chk.test(res.out)))
+        .map(([n]) => n);
+      if (bad.length === 0) { console.log(`  ✔ ${label}`); pass++; }
+      else {
+        console.log(`  ✘ ${label} 실패 항목: ${bad.join(', ')}`);
+        console.log(res.out.split('\n').filter((l) => /블록입력|제목|태그|임시저장|글자수/.test(l)).slice(0, 8).map((l) => '      ' + l).join('\n'));
+        fail++;
+      }
+    }
+  }
+
   console.log(`\n  통과 ${pass} / 실패 ${fail}\n`);
   process.exit(fail ? 1 : 0);
 })();

@@ -251,6 +251,22 @@ document.getElementById('realPublish').addEventListener('click', () => { window.
   });
 })();
 
+/* ── ?blockimage=1 : 사진 버튼이 다른 요소에 가려 클릭이 실패하는 상황 재현 ── */
+(function () {
+  let q = ''; try { q = parent.location.search; } catch (e) {}
+  if (!/blockimage/.test(q)) return;
+  window.addEventListener('load', function () {
+    const b = document.querySelector('.se-image-toolbar-button');
+    if (!b) return;
+    const r = b.getBoundingClientRect();
+    const o = document.createElement('div');
+    o.id = 'blocker';
+    o.style.cssText = 'position:fixed;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width +
+      'px;height:' + r.height + 'px;z-index:9999;background:rgba(255,0,0,.2)';
+    document.body.appendChild(o);
+  });
+})();
+
 /* ── 저장 · 팝업 ──────────────────────────────── */
 document.getElementById('saveBtn').addEventListener('click', () => { window.__mock.saved++; });
 document.querySelector('.se-popup-button-cancel').addEventListener('click', () => {
