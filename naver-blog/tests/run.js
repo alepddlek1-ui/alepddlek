@@ -257,6 +257,73 @@ const tmp = (name, obj) => {
     }
   }
 
+  console.log('\n[6] 완전 자동화 파이프라인 (링크/원문 → 집필 → 검증 → 임시저장)');
+
+  async function runAuto(extraArgs, envOver, label) {
+    const { server, port } = await start();
+    const child = spawn(process.execPath, [
+      path.join(ROOT, 'scripts', 'auto_post.js'),
+      path.join(__dirname, 'fixtures', 'mock-source.txt'),
+      '--headless',
+      ...extraArgs,
+    ], {
+      cwd: ROOT,
+      env: {
+        ...process.env,
+        HTTP_PROXY: '', HTTPS_PROXY: '', http_proxy: '', https_proxy: '', NO_PROXY: '*', no_proxy: '*',
+        CLAUDE_BIN: `${process.execPath} ${path.join(__dirname, 'fixtures', 'fake-claude.js')}`,
+        NB_DAILY_LIMIT: '99',
+        NAVER_WRITE_URL: `http://127.0.0.1:${port}/mock-editor.html`,
+        NAVER_PROFILE_DIR: path.join(os.tmpdir(), 'nb-auto-profile'),
+        ...envOver,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let out = '';
+    child.stdout.on('data', (d) => { out += d; });
+    child.stderr.on('data', (d) => { out += d; });
+    const code = await new Promise((r) => child.on('close', r));
+    server.close();
+    return { code, out, label };
+  }
+
+  {
+    const label = '링크 대신 원문 파일로 전체 자동 실행 → 임시저장까지';
+    const res = await runAuto([], {}, label);
+    const checks = [
+      ['AI 집필 성공', /초안 작성됨/],
+      ['카드 이미지 생성', /장 생성/],
+      ['글쓰기 공식 검수 실행', /\[제목\]/],
+      ['사실 대조 통과', /사실 대조 통과/],
+      ['임시저장 완료', /임시저장\s+임시저장 클릭 완료/],
+      ['전문 대조 일치', /전문대조\s+✔/],
+      ['최종 판정 성공', /✅ 완료/],
+      ['종료 코드 0', () => res.code === 0],
+    ];
+    const bad = checks.filter(([, c]) => (typeof c === 'function' ? !c() : !c.test(res.out))).map(([n]) => n);
+    if (!bad.length) { console.log(`  ✔ ${label}`); pass++; }
+    else {
+      console.log(`  ✘ ${label} 실패 항목: ${bad.join(', ')}`);
+      console.log(res.out.split('\n').slice(-14).map((l) => '      ' + l).join('\n'));
+      fail++;
+    }
+  }
+
+  {
+    const label = '인용구를 지어내면 네이버로 보내지 않는다';
+    const res = await runAuto([], { NB_FAKE_BAD_QUOTE: '1' }, label);
+    const ok = /인용구가 원문에 없습니다/.test(res.out)
+      && /사실 대조에서 하드 실패/.test(res.out)
+      && !/임시저장 클릭 완료/.test(res.out)
+      && res.code !== 0;
+    if (ok) { console.log(`  ✔ ${label}`); pass++; }
+    else {
+      console.log(`  ✘ ${label} (exit ${res.code})`);
+      console.log(res.out.split('\n').slice(-12).map((l) => '      ' + l).join('\n'));
+      fail++;
+    }
+  }
+
   console.log(`\n  통과 ${pass} / 실패 ${fail}\n`);
   process.exit(fail ? 1 : 0);
 })();

@@ -16,6 +16,8 @@ rem 툴 본체만 덮어쓴다 (/Y = 묻지 않고 덮어쓰기)
 xcopy /Y /E /I /Q "_tmp\naver-blog\scripts"  "scripts"  >nul
 xcopy /Y /E /I /Q "_tmp\naver-blog\.claude"  ".claude"  >nul
 xcopy /Y /E /I /Q "_tmp\naver-blog\tests"    "tests"    >nul
+xcopy /Y /E /I /Q "_tmp\naver-blog\prompts"  "prompts"  >nul
+xcopy /Y /Q "_tmp\naver-blog\auto.cmd"       "."        >nul
 xcopy /Y /Q "_tmp\naver-blog\CLAUDE.md"      "."        >nul
 xcopy /Y /Q "_tmp\naver-blog\README.md"      "."        >nul
 xcopy /Y /Q "_tmp\naver-blog\사용법.md"      "."        >nul

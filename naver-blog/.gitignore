@@ -9,6 +9,9 @@ input/videos/*
 !input/photos/.gitkeep
 !input/videos/.gitkeep
 
+# 자동화 상태(하루 몇 건 만들었는지)
+state/
+
 # 초안·검증 산출물
 drafts/*
 !drafts/.gitkeep

@@ -24,7 +24,7 @@ for (const m of ['log', 'warn', 'error']) {
   };
 }
 
-const BUILD = '2026-09-16.3';   // 로그만 보고도 어느 버전이 돌았는지 알 수 있게 한다
+const BUILD = '2026-09-16.4';   // 로그만 보고도 어느 버전이 돌았는지 알 수 있게 한다
 
 // 어딘가에서 await 되지 않은 promise 가 거부되면 Node 는 프로세스를 그냥 죽인다.
 // 그러면 본문을 절반만 쓴 채 제목·태그·임시저장이 통째로 날아간다. 죽지 말고 기록만 한다.
@@ -835,7 +835,8 @@ function printResult(dryRun, blocked) {
   console.log(`  임시저장  ${dryRun ? '건너뜀 (--dry-run)' : RESULT.save.note}`);
   console.log(`  블록입력  ${RESULT.blocks.ok}/${RESULT.blocks.total}   ${mark(RESULT.blocks.ok === RESULT.blocks.total)}`);
   RESULT.blocks.fail.forEach((f) => console.log(`             - ${f}`));
-  console.log(`  글자수    초안 ${RESULT.chars.draft}자 → 에디터 ${RESULT.chars.editor}자 ${RESULT.chars.editor < RESULT.chars.draft * 0.9 ? '❗본문이 잘렸습니다' : '✔'}`);
+  // 잘림 판정은 전문 대조가 한다. 글자수는 참고 수치로만 보여 준다(헛경보 방지).
+  console.log(`  글자수    초안 ${RESULT.chars.draft}자 → 에디터 ${RESULT.chars.editor}자 ${RESULT.verify.ok ? '✔' : '❗아래 불일치 확인'}`);
   console.log(`  전문대조  ${RESULT.verify.ok ? '✔ 초안과 일치' : `❗불일치 ${RESULT.verify.missing.length}건`}`);
   RESULT.verify.missing.slice(0, 20).forEach((m) => console.log(`             - ${m}`));
   console.log(`  발행가드  차단 ${blocked}회 (가드 정상 작동)`);
@@ -983,10 +984,12 @@ async function main() {
       ].join('\n'),
       'utf8'
     );
-    RESULT.chars.draft = draft.blocks
-      .filter((b) => b.type !== 'divider' && b.type !== 'image')
-      .map((b) => String(b.text || '')).join('').replace(/\n/g, '').length;
-    RESULT.chars.editor = [dump.title, ...dump.paragraphs, ...dump.quotes].join('').replace(/\s/g, '').length;
+    // 초안 쪽도 제목·캡션까지 포함해 같은 기준으로 센다
+    RESULT.chars.draft = [
+      String(draft.title || ''),
+      ...draft.blocks.map((b) => (b.type === 'image' ? String(b.caption || '') : String(b.text || ''))),
+    ].join('').replace(/\s/g, '').length;
+    RESULT.chars.editor = String(dump.full || '').replace(/\s/g, '').length;
     RESULT.verify.missing = verifyAgainstDraft(draft, dump);
     RESULT.verify.ok = RESULT.verify.missing.length === 0;
     log.ok(`스크린샷: ${path.relative(B.ROOT, shot)}`);
