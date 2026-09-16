@@ -165,6 +165,70 @@ const tmp = (name, obj) => {
     await browser.close();
   }
 
+  console.log('\n[5] 모의 에디터 통합 테스트 (스크립트를 처음부터 끝까지 실제로 돌린다)');
+
+  const { start } = require('./mock-server.js');
+  const { spawn } = require('child_process');
+
+  async function runAgainstMock(query, label) {
+    const { server, port } = await start();
+    const url = `http://127.0.0.1:${port}/mock-editor.html${query}`;
+    const child = spawn(process.execPath, [
+      path.join(ROOT, 'scripts', 'naver_draft.js'),
+      path.join(__dirname, 'fixtures', 'mock-draft.json'),
+      '--headless',
+    ], {
+      cwd: ROOT,
+      env: {
+        ...process.env,
+        HTTP_PROXY: '', HTTPS_PROXY: '', http_proxy: '', https_proxy: '', NO_PROXY: '*', no_proxy: '*',
+        NAVER_WRITE_URL: url,
+        NAVER_PROFILE_DIR: path.join(os.tmpdir(), 'nb-mock-profile'),
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let out = '';
+    child.stdout.on('data', (d) => { out += d; });
+    child.stderr.on('data', (d) => { out += d; });
+    const code = await new Promise((r) => child.on('close', r));
+    server.close();
+    return { code, out, label };
+  }
+
+  const scenarios = [
+    ['', '정상 동작'],
+    ['?nochooser=1', '파일 선택창 가로채기 실패 → 숨은 input 폴백'],
+    ['?noclass=1', '네이버가 클래스명을 전부 바꾼 상황 → 라벨 폴백'],
+  ];
+
+  for (const [q, label] of scenarios) {
+    let res;
+    try { res = await runAgainstMock(q, label); }
+    catch (e) { console.log(`  ✘ ${label} → 실행 실패: ${e.message}`); fail++; continue; }
+
+    const checks = [
+      ['사진 2/2', /사진\s+2\/2\s+✔/],
+      ['캡션 1/1', /캡션\s+1\/1\s+✔/],
+      ['소제목 2/2', /소제목\s+2\/2\s+✔/],
+      ['인용구 1/1', /인용구\s+1\/1\s+✔/],
+      ['구분선 1/1', /구분선\s+1\/1\s+✔/],
+      ['태그 3/3', /태그\s+3\/3/],
+      ['제목 일치', /제목\s+일치/],
+      ['임시저장', /임시저장\s+임시저장 클릭 완료/],
+      ['전문대조 일치', /전문대조\s+✔/],
+      ['발행 차단 0회', /발행가드\s+차단 0회/],
+    ];
+    const bad = checks.filter(([, re]) => !re.test(res.out)).map(([n]) => n);
+    if (res.code === 0 && bad.length === 0) {
+      console.log(`  ✔ ${label}`);
+      pass++;
+    } else {
+      console.log(`  ✘ ${label} (exit ${res.code}) 실패 항목: ${bad.join(', ') || '없음'}`);
+      console.log(res.out.split('\n').filter((l) => /✘|Error|실패/.test(l)).slice(0, 8).map((l) => '      ' + l).join('\n'));
+      fail++;
+    }
+  }
+
   console.log(`\n  통과 ${pass} / 실패 ${fail}\n`);
   process.exit(fail ? 1 : 0);
 })();

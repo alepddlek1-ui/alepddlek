@@ -8,9 +8,10 @@ const path = require('path');
 const fs = require('fs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const PROFILE_DIR = path.join(ROOT, 'naver-profile');
+// 테스트에서 임시 프로필/모의 에디터를 쓸 수 있게 환경변수로 덮어쓸 수 있다.
+const PROFILE_DIR = process.env.NAVER_PROFILE_DIR || path.join(ROOT, 'naver-profile');
 
-const WRITE_URL = 'https://blog.naver.com/GoBlogWrite.naver';
+const WRITE_URL = process.env.NAVER_WRITE_URL || 'https://blog.naver.com/GoBlogWrite.naver';
 
 /** 진짜 발행 버튼 — 이 선택자 클릭만 원천 차단한다(패널 여는 버튼은 아님) */
 const PUBLISH_BTN = 'button[data-testid="seOnePublishBtn"]';
@@ -103,13 +104,15 @@ async function launch({ headless = false } = {}) {
   if (!fs.existsSync(PROFILE_DIR)) fs.mkdirSync(PROFILE_DIR, { recursive: true });
 
   // 뷰포트 1600x1000 미만이면 패널이 열릴 때 속성 툴바가 잘려 서식 버튼 클릭이 불안정해진다.
-  const context = await chromium.launchPersistentContext(PROFILE_DIR, {
+  const launchArgs = {
     headless,
     viewport: { width: 1600, height: 1000 },
     locale: 'ko-KR',
     timezoneId: 'Asia/Seoul',
     args: ['--window-size=1680,1060', '--disable-blink-features=AutomationControlled'],
-  });
+  };
+  if (process.env.CHROMIUM_PATH) launchArgs.executablePath = process.env.CHROMIUM_PATH;
+  const context = await chromium.launchPersistentContext(PROFILE_DIR, launchArgs);
   await installPublishGuard(context);
 
   const page = context.pages()[0] || (await context.newPage());

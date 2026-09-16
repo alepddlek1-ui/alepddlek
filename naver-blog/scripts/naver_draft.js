@@ -24,6 +24,8 @@ for (const m of ['log', 'warn', 'error']) {
   };
 }
 
+const BUILD = '2026-09-16.1';   // 로그만 보고도 어느 버전이 돌았는지 알 수 있게 한다
+
 /* ══ 자동 처리 결과 집계 ══════════════════════════════════ */
 const RESULT = {
   photos: { total: 0, ok: 0, fail: [] },
@@ -141,6 +143,22 @@ async function focusEnd(frame, page) {
   }
 }
 
+/* ══ 툴바 버튼 찾기 ══════════════════════════════════════ */
+// 네이버가 클래스명을 바꿔도 라벨/텍스트로 찾아낼 수 있게 여러 경로를 둔다.
+async function findToolbarButton(frame, { classes = [], labels = [] }) {
+  for (const c of classes) {
+    const loc = frame.locator(`button.${c}, .${c}`).first();
+    if (await loc.isVisible({ timeout: 1500 }).catch(() => false)) return { loc, how: `class .${c}` };
+  }
+  for (const l of labels) {
+    for (const sel of [`button[aria-label*="${l}"]`, `button[title*="${l}"]`, `button:has-text("${l}")`]) {
+      const loc = frame.locator(sel).first();
+      if (await loc.isVisible({ timeout: 800 }).catch(() => false)) return { loc, how: sel };
+    }
+  }
+  return null;
+}
+
 /* ══ 툴바 클릭(후보 셀렉터 순차 시도) ════════════════════ */
 async function clickFirst(frame, selectors, { timeout = 4000 } = {}) {
   for (const sel of selectors) {
@@ -159,6 +177,25 @@ async function clickFirst(frame, selectors, { timeout = 4000 } = {}) {
 const FORMAT_BTN = ['button.se-text-format-toolbar-button', '.se-text-format-toolbar-button'];
 const FONTSIZE_BTN = ['button.se-font-size-code-toolbar-button', '.se-font-size-code-toolbar-button'];
 
+// 클래스가 바뀌어도 라벨로 찾아낸다. 한 번 찾으면 재사용한다.
+const _btnCache = {};
+async function getFormatBtn(frame) {
+  if (_btnCache.fmt) return _btnCache.fmt;
+  _btnCache.fmt = await findToolbarButton(frame, {
+    classes: ['se-text-format-toolbar-button'],
+    labels: ['문단 서식', '본문', '서식'],
+  });
+  return _btnCache.fmt;
+}
+async function getSizeBtn(frame) {
+  if (_btnCache.size) return _btnCache.size;
+  _btnCache.size = await findToolbarButton(frame, {
+    classes: ['se-font-size-code-toolbar-button'],
+    labels: ['글자 크기', '크기'],
+  });
+  return _btnCache.size;
+}
+
 async function pickOptionByText(frame, label) {
   const opts = frame.locator('button:visible, li:visible > button, [role="option"]:visible');
   const n = await opts.count();
@@ -171,8 +208,9 @@ async function pickOptionByText(frame, label) {
 }
 
 async function setParagraphFormat(frame, page, label) {
-  const opened = await clickFirst(frame, FORMAT_BTN);
-  if (!opened) return { ok: false, reason: '문단 서식 드롭다운 버튼을 찾지 못함' };
+  const btn = await getFormatBtn(frame);
+  if (!btn) return { ok: false, reason: '문단 서식 드롭다운 버튼을 찾지 못함' };
+  await btn.loc.click();
   await page.waitForTimeout(300);
   const picked = await pickOptionByText(frame, label);
   await page.waitForTimeout(300);
@@ -181,13 +219,14 @@ async function setParagraphFormat(frame, page, label) {
     return { ok: false, reason: `"${label}" 옵션을 찾지 못함` };
   }
   // 드롭다운 라벨을 다시 읽어 적용 여부 검증
-  const shown = await frame.locator(FORMAT_BTN[0]).first().innerText().catch(() => '');
+  const shown = await btn.loc.innerText().catch(() => '');
   return { ok: true, label: shown.replace(/\s+/g, '') };
 }
 
 async function setFontSize(frame, page, code = 'fs19', label = '19') {
-  const opened = await clickFirst(frame, FONTSIZE_BTN);
-  if (!opened) return { ok: false, reason: '글자 크기 드롭다운 버튼을 찾지 못함' };
+  const btn = await getSizeBtn(frame);
+  if (!btn) return { ok: false, reason: '글자 크기 드롭다운 버튼을 찾지 못함' };
+  await btn.loc.click();
   await page.waitForTimeout(250);
   const direct = frame.locator(`button[data-value="${code}"], .se-toolbar-option-font-size-code-${code}-button`).first();
   if (await direct.isVisible({ timeout: 1500 }).catch(() => false)) {
@@ -205,7 +244,8 @@ async function setFontSize(frame, page, code = 'fs19', label = '19') {
 // 소제목 뒤 "본문 복귀"가 한 번이라도 실패하면 그 뒤 문단이 소제목 크기로 남는다.
 // 그래서 text 블록마다 서식과 크기를 명시적으로 다시 지정해 글 전체 폰트를 일정하게 유지한다.
 async function ensureBodyFormat(frame, page, fontSize) {
-  const cur = await frame.locator(FORMAT_BTN[0]).first().innerText().catch(() => '');
+  const fb = await getFormatBtn(frame);
+  const cur = fb ? await fb.loc.innerText().catch(() => '') : '';
   if (cur.replace(/\s+/g, '') !== '본문') {
     const r = await setParagraphFormat(frame, page, '본문');
     if (!r.ok) log.warn(`본문 서식 복귀 실패: ${r.reason}`);
@@ -253,11 +293,12 @@ async function insertSubtitle(frame, page, text) {
 async function insertQuote(frame, page, text) {
   RESULT.quotes.total++;
   await focusEnd(frame, page);
-  const clicked = await clickFirst(frame, [
-    'button.se-insert-quotation-default-toolbar-button',
-    '.se-insert-quotation-default-toolbar-button',
-  ]);
-  if (!clicked) { RESULT.quotes.fail.push(text); log.fail('인용구 버튼을 찾지 못했습니다.'); return; }
+  const qb = await findToolbarButton(frame, {
+    classes: ['se-insert-quotation-default-toolbar-button'],
+    labels: ['인용구'],
+  });
+  if (!qb) { RESULT.quotes.fail.push(text); log.fail('인용구 버튼을 찾지 못했습니다.'); await dumpButtons(frame, 'quot'); return; }
+  await qb.loc.click();
   await page.waitForTimeout(400);
   await insertText(page, text);
 
@@ -279,11 +320,12 @@ async function insertQuote(frame, page, text) {
 async function insertDivider(frame, page) {
   RESULT.dividers.total++;
   await focusEnd(frame, page);
-  const clicked = await clickFirst(frame, [
-    'button.se-insert-horizontal-line-default-toolbar-button',
-    '.se-insert-horizontal-line-default-toolbar-button',
-  ]);
-  if (!clicked) { RESULT.dividers.fail.push('divider'); log.fail('구분선 버튼을 찾지 못했습니다.'); return; }
+  const hb = await findToolbarButton(frame, {
+    classes: ['se-insert-horizontal-line-default-toolbar-button'],
+    labels: ['구분선'],
+  });
+  if (!hb) { RESULT.dividers.fail.push('divider'); log.fail('구분선 버튼을 찾지 못했습니다.'); await dumpButtons(frame, 'horizontal'); return; }
+  await hb.loc.click();
   await page.waitForTimeout(400);
   RESULT.dividers.ok++;
 }
@@ -301,23 +343,50 @@ async function insertImage(frame, page, block, idx) {
   await focusEnd(frame, page);
   const before = await countImages(frame);
 
-  const chooserPromise = page.waitForEvent('filechooser', { timeout: 20000 });
-  const clicked = await clickFirst(frame, ['button.se-image-toolbar-button', '.se-image-toolbar-button']);
-  if (!clicked) {
+  const btn = await findToolbarButton(frame, {
+    classes: ['se-image-toolbar-button'],
+    labels: ['사진', '이미지'],
+  });
+  if (!btn) {
     RESULT.photos.fail.push(`${block.path} — 사진 버튼 없음`);
     log.fail('사진 버튼을 찾지 못했습니다. 실제 DOM 을 실측합니다.');
     await dumpButtons(frame, 'image');
     return;
   }
-  let chooser;
-  try { chooser = await chooserPromise; }
-  catch {
-    RESULT.photos.fail.push(`${block.path} — 파일선택창이 뜨지 않음`);
-    log.fail('사진 버튼은 눌렸지만 파일 선택창이 열리지 않았습니다. 실제 DOM 을 실측합니다.');
+  log.info(`사진 버튼: ${btn.how}`);
+
+  // 1순위: 파일 선택창을 가로채는 정석 경로
+  let delivered = false;
+  try {
+    const chooserPromise = page.waitForEvent('filechooser', { timeout: 15000 });
+    await btn.loc.click();
+    const chooser = await chooserPromise;
+    await chooser.setFiles(block._abs);
+    delivered = true;
+  } catch {
+    log.warn('파일 선택창이 열리지 않았습니다 → 숨은 파일 입력란에 직접 넣어봅니다.');
+  }
+
+  // 2순위: 에디터가 숨겨 둔 input[type=file] 에 직접 주입
+  if (!delivered) {
+    const inputs = frame.locator('input[type="file"]');
+    const n = await inputs.count().catch(() => 0);
+    for (let i = 0; i < n && !delivered; i++) {
+      try {
+        await inputs.nth(i).setInputFiles(block._abs, { timeout: 8000 });
+        delivered = true;
+        log.info(`숨은 파일 입력란(${i + 1}/${n})으로 전달했습니다.`);
+      } catch { /* 다음 후보 */ }
+    }
+  }
+
+  if (!delivered) {
+    RESULT.photos.fail.push(`${block.path} — 파일 전달 실패`);
+    log.fail('사진 파일을 에디터에 전달하지 못했습니다. 실제 DOM 을 실측합니다.');
     await dumpButtons(frame, 'image');
+    await dumpFileInputs(frame);
     return;
   }
-  await chooser.setFiles(block._abs);
 
   // 업로드 완료 대기
   const deadline = Date.now() + 120000;
@@ -366,10 +435,21 @@ async function dumpButtons(frame, hint) {
   });
 }
 
+async function dumpFileInputs(frame) {
+  const list = await frame.evaluate(() =>
+    Array.from(document.querySelectorAll('input[type="file"]')).map((el) => ({
+      id: el.id || '', cls: String(el.className || ''), accept: el.getAttribute('accept') || '',
+      multiple: el.multiple, hidden: el.offsetParent === null,
+    }))).catch(() => []);
+  log.info(`[실측] input[type=file] ${list.length}개`);
+  list.forEach((f) => log.info(`   id="${f.id}" class="${f.cls}" accept="${f.accept}" hidden=${f.hidden}`));
+}
+
 async function writeCaption(frame, page, caption) {
   const candidates = [
-    '.se-section-image:last-of-type .se-caption [contenteditable="true"]',
-    '.se-section-image:last-of-type .se-caption p.se-text-paragraph',
+    '.se-section-image .se-caption [contenteditable="true"]',
+    '.se-section-image .se-caption p.se-text-paragraph',
+    '.se-caption p.se-text-paragraph',
     '.se-caption [data-placeholder*="설명"]',
     '[data-placeholder*="사진 설명"]',
   ];
@@ -747,6 +827,7 @@ async function main() {
     process.exit(1);
   }
 
+  console.log(`\n  naver_draft.js  build ${BUILD}`);
   const draft = loadDraft(flags._[0]);
   log.ok(`초안 로드: ${path.basename(draft._file)} (블록 ${draft.blocks.length}개)`);
   if (flags.dryRun) log.warn('--dry-run: 임시저장 클릭을 생략합니다.');
@@ -759,7 +840,7 @@ async function main() {
     await page.waitForTimeout(3000);
 
     // 로그인 화면으로 튕기면 바로 죽지 않고, 그 자리에서 로그인할 시간을 준다
-    if (/nid\.naver\.com/.test(page.url())) {
+    if (/^https:\/\/blog\.naver\.com/.test(B.WRITE_URL) && /nid\.naver\.com/.test(page.url())) {
       log.warn('로그인 세션이 없거나 만료됐습니다.');
       console.log('\n' + '─'.repeat(64));
       console.log('  지금 열려 있는 브라우저 창에서 직접 로그인해 주세요.');
@@ -794,6 +875,7 @@ async function main() {
     for (let i = 0; i < draft.blocks.length; i++) {
       const b = draft.blocks[i];
       const next = draft.blocks[i + 1];
+      log.info(`[${i + 1}/${draft.blocks.length}] ${b.type}${b.path ? ' ' + path.basename(b.path) : ''}`);
 
       if (b.type === 'text') {
         await insertTextBlock(frame, page, b.text, next && next.type === 'text', draft.fontSize);

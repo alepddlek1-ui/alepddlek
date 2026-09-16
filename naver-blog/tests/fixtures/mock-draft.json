@@ -1,0 +1,21 @@
+{
+  "title": "모의 에디터 통합 테스트 제목입니다",
+  "mainKeyword": "테스트",
+  "fontSize": 16,
+  "sponsored": false,
+  "sources": ["테스트"],
+  "tags": ["태그하나", "#태그둘", "태그셋"],
+  "blocks": [
+    { "type": "text", "text": "첫 문단 첫 줄입니다.\n첫 문단 둘째 줄입니다." },
+    { "type": "text", "text": "둘째 문단입니다." },
+    { "type": "subtitle", "text": "소제목 하나" },
+    { "type": "text", "text": "소제목 뒤 본문입니다." },
+    { "type": "image", "path": "input/photos/_cards/01-score.png", "caption": "첫 번째 카드 캡션" },
+    { "type": "quote", "text": "인용구로 강조한 문장입니다." },
+    { "type": "text", "text": "인용구 뒤 본문입니다." },
+    { "type": "divider" },
+    { "type": "subtitle", "text": "소제목 둘" },
+    { "type": "image", "path": "input/photos/_cards/02-flow.png" },
+    { "type": "text", "text": "마지막 문단입니다." }
+  ]
+}

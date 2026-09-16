@@ -25,7 +25,8 @@ if exist "_tmp\naver-blog\drafts" xcopy /Y /Q "_tmp\naver-blog\drafts\*.json" "d
 
 rmdir /s /q _tmp
 
-echo  완료했습니다.
+for /f "delims=" %%v in ('node -e "const m=require('fs').readFileSync('scripts/naver_draft.js','utf8').match(/BUILD = '([^']+)'/);console.log(m?m[1]:'unknown')"') do set NBVER=%%v
+echo  완료했습니다.  (설치된 버전: %NBVER%)
 echo  data\ 폴더(내 블로그 정보)와 사진·영상은 건드리지 않았습니다.
 echo.
 goto :eof

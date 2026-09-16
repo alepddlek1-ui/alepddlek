@@ -1,0 +1,263 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<title>모의 스마트에디터</title>
+<style>
+  body { font-family: sans-serif; margin:0; }
+  #toolbar { position:sticky; top:0; background:#f5f6f8; border-bottom:1px solid #ddd; padding:8px; display:flex; gap:6px; flex-wrap:wrap; z-index:10; }
+  #toolbar button { padding:6px 10px; font-size:13px; cursor:pointer; }
+  .menu { position:absolute; background:#fff; border:1px solid #bbb; padding:4px; z-index:50; display:flex; flex-direction:column; }
+  .menu[hidden] { display:none; }
+  .se-canvas { padding:24px; min-height:600px; outline:none; }
+  .se-title-text { font-size:28px; font-weight:700; border-bottom:1px solid #eee; padding-bottom:12px; margin-bottom:20px; }
+  .se-section-text p { margin:0 0 4px; font-size:15px; }
+  .se-section-quotation { border-left:4px solid #333; padding-left:14px; margin:16px 0; font-style:italic; }
+  .se-section-image { margin:16px 0; }
+  .se-image-resource { display:block; max-width:320px; border:1px solid #ccc; }
+  .se-caption { color:#888; font-size:13px; margin-top:6px; }
+  .se-section-horizontalLine hr { border:0; border-top:1px solid #ccc; }
+  #publishPanel, #helpPanel, #draftPopup { position:fixed; background:#fff; border:1px solid #888; padding:16px; z-index:100; }
+  #publishPanel { right:16px; top:56px; width:300px; }
+  #draftPopup { left:40%; top:30%; }
+  #helpPanel { left:16px; bottom:16px; }
+  [hidden] { display:none !important; }
+  .tag_chip { display:inline-block; background:#eef; margin:2px; padding:2px 6px; border-radius:10px; font-size:12px; }
+</style></head>
+<body>
+
+<div id="toolbar">
+  <button class="se-image-toolbar-button">사진</button>
+  <button class="se-video-toolbar-button">동영상</button>
+  <button class="se-map-toolbar-button">장소</button>
+  <button class="se-insert-quotation-default-toolbar-button">인용구</button>
+  <button class="se-insert-horizontal-line-default-toolbar-button">구분선</button>
+  <button class="se-text-format-toolbar-button" id="fmtBtn">본문</button>
+  <button class="se-font-size-code-toolbar-button" id="sizeBtn">15</button>
+  <span style="flex:1"></span>
+  <button class="publish_btn__x7Kd" id="publishOpener">발행</button>
+  <button class="save_btn__q2Lm" id="saveBtn">저장</button>
+</div>
+
+<div class="menu" id="fmtMenu" hidden style="left:300px; top:44px;">
+  <button data-fmt="본문">본문</button>
+  <button data-fmt="소제목">소제목</button>
+  <button data-fmt="인용구">인용구</button>
+</div>
+<div class="menu" id="sizeMenu" hidden style="left:380px; top:44px;">
+  <button data-value="fs15">15</button>
+  <button data-value="fs16">16</button>
+  <button data-value="fs19">19</button>
+  <button data-value="fs30">30</button>
+</div>
+
+<div class="se-canvas" id="canvas" contenteditable="true">
+  <div class="se-component se-documentTitle">
+    <div class="se-section se-section-documentTitle">
+      <div class="se-title-text"><p class="se-text-paragraph"><br></p></div>
+    </div>
+  </div>
+  <div class="se-component se-text">
+    <div class="se-section se-section-text"><p class="se-text-paragraph"><br></p></div>
+  </div>
+</div>
+
+<div id="publishPanel" hidden>
+  <div id="tagBox">
+    <div id="tagChips"></div>
+    <input id="tag-input" placeholder="#태그 입력">
+  </div>
+  <button data-testid="seOnePublishBtn" id="realPublish">발행</button>
+</div>
+
+<div id="draftPopup">
+  작성 중인 글이 있습니다.
+  <button class="se-popup-button-cancel">새로 쓰기</button>
+  <button class="se-popup-button-confirm">이어 쓰기</button>
+</div>
+<div id="helpPanel"><button class="se-help-panel-close-button">도움말 닫기</button></div>
+
+<input type="file" id="fileInput" hidden>
+
+<script>
+window.__mock = { saved: 0, publishAttempts: 0 };
+const canvas = document.getElementById('canvas');
+
+/* ── 선택 영역 유틸 ───────────────────────────── */
+function currentNode() {
+  const s = document.getSelection();
+  if (!s || !s.anchorNode) return null;
+  return s.anchorNode.nodeType === 1 ? s.anchorNode : s.anchorNode.parentElement;
+}
+function currentPara() {
+  const n = currentNode();
+  return n ? n.closest('p.se-text-paragraph') : null;
+}
+function currentComponent() {
+  const n = currentNode();
+  return n ? n.closest('.se-component') : null;
+}
+function caretTo(el, atEnd) {
+  const r = document.createRange();
+  r.selectNodeContents(el);
+  r.collapse(!atEnd);
+  const s = document.getSelection();
+  s.removeAllRanges(); s.addRange(r);
+}
+function newTextComponent() {
+  const d = document.createElement('div');
+  d.className = 'se-component se-text';
+  d.innerHTML = '<div class="se-section se-section-text"><p class="se-text-paragraph"><br></p></div>';
+  return d;
+}
+function ensureTrailingText(afterEl) {
+  const t = newTextComponent();
+  afterEl.after(t);
+  return t.querySelector('p');
+}
+
+/* ── 툴바가 선택 영역을 뺏지 않게 ─────────────── */
+document.querySelectorAll('#toolbar button, .menu button').forEach((b) => {
+  b.addEventListener('mousedown', (e) => e.preventDefault());
+});
+
+/* ── Enter 처리 ───────────────────────────────── */
+canvas.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const p = currentPara();
+  if (!p) return;
+
+  if (p.closest('.se-section-documentTitle')) return;           // 제목에선 줄바꿈 없음
+  if (p.closest('.se-caption')) return;                          // 캡션도 한 줄
+
+  const quote = p.closest('.se-component');
+  const inQuote = !!p.closest('.se-section-quotation');
+  const empty = p.textContent.trim() === '';
+
+  if (inQuote && empty) {                                        // 빈 줄에서 Enter → 인용구 탈출
+    p.remove();
+    caretTo(ensureTrailingText(quote), false);
+    return;
+  }
+  const np = document.createElement('p');
+  np.className = 'se-text-paragraph';
+  np.innerHTML = '<br>';
+  if (p.style.fontSize) np.style.fontSize = p.style.fontSize;
+  p.after(np);
+  caretTo(np, false);
+});
+
+/* ── 문단 서식 드롭다운 ───────────────────────── */
+const fmtBtn = document.getElementById('fmtBtn');
+const fmtMenu = document.getElementById('fmtMenu');
+fmtBtn.addEventListener('click', () => { fmtMenu.hidden = !fmtMenu.hidden; });
+fmtMenu.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+  const p = currentPara();
+  const label = b.dataset.fmt;
+  if (p) { p.dataset.fmt = label; if (label === '소제목') p.style.fontWeight = '700'; else p.style.fontWeight = ''; }
+  fmtBtn.textContent = label;
+  fmtMenu.hidden = true;
+}));
+
+/* ── 글자 크기 드롭다운 ───────────────────────── */
+const sizeBtn = document.getElementById('sizeBtn');
+const sizeMenu = document.getElementById('sizeMenu');
+sizeBtn.addEventListener('click', () => { sizeMenu.hidden = !sizeMenu.hidden; });
+sizeMenu.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+  const p = currentPara();
+  const px = b.dataset.value.replace('fs', '');
+  if (p) p.style.fontSize = px + 'px';
+  sizeBtn.textContent = px;
+  sizeMenu.hidden = true;
+}));
+
+/* ── 인용구 · 구분선 ──────────────────────────── */
+document.querySelector('.se-insert-quotation-default-toolbar-button').addEventListener('click', () => {
+  const comp = currentComponent() || canvas.lastElementChild;
+  const d = document.createElement('div');
+  d.className = 'se-component se-quotation';
+  d.innerHTML = '<div class="se-section se-section-quotation"><p class="se-text-paragraph"><br></p></div>';
+  comp.after(d);
+  caretTo(d.querySelector('p'), false);
+});
+document.querySelector('.se-insert-horizontal-line-default-toolbar-button').addEventListener('click', () => {
+  const comp = currentComponent() || canvas.lastElementChild;
+  const d = document.createElement('div');
+  d.className = 'se-component se-horizontalLine';
+  d.innerHTML = '<div class="se-section se-section-horizontalLine"><hr></div>';
+  comp.after(d);
+  caretTo(ensureTrailingText(d), false);
+});
+
+/* ── 사진 ─────────────────────────────────────── */
+const fileInput = document.getElementById('fileInput');
+// ?nochooser=1 이면 사진 버튼이 파일 선택창을 띄우지 않는다 (실제 네이버에서 가로채기 실패하는 상황 재현)
+const NOCHOOSER = (function () { try { return /nochooser/.test(parent.location.search); } catch (e) { return false; } })();
+document.querySelector('.se-image-toolbar-button').addEventListener('click', () => { if (!NOCHOOSER) fileInput.click(); });
+fileInput.addEventListener('change', () => {
+  const files = Array.from(fileInput.files || []);
+  const comp = currentComponent() || canvas.lastElementChild;
+  let anchor = comp;
+  files.forEach((f) => {
+    setTimeout(() => {                                   // 업로드 지연 흉내
+      const d = document.createElement('div');
+      d.className = 'se-component se-image';
+      d.innerHTML =
+        '<div class="se-section se-section-image">' +
+        '<img class="se-image-resource" alt="' + f.name + '" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">' +
+        '<div class="se-caption"><p class="se-text-paragraph" data-placeholder="사진 설명을 입력하세요"><br></p></div>' +
+        '</div>';
+      anchor.after(d);
+      ensureTrailingText(d);
+      anchor = d.nextElementSibling;
+    }, 300);
+  });
+  fileInput.value = '';
+});
+
+/* ── 발행 패널 · 태그 ─────────────────────────── */
+const panel = document.getElementById('publishPanel');
+document.getElementById('publishOpener').addEventListener('click', () => { panel.hidden = false; });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !panel.hidden) { panel.hidden = true; }
+});
+const tagInput = document.getElementById('tag-input');
+tagInput.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const v = tagInput.value.trim().replace(/^#+/, '');
+  if (!v) return;
+  const chip = document.createElement('span');
+  chip.className = 'tag_chip';
+  chip.textContent = '#' + v;
+  document.getElementById('tagChips').appendChild(chip);
+  tagInput.value = '';
+});
+document.getElementById('realPublish').addEventListener('click', () => { window.__mock.publishAttempts++; });
+
+/* ── ?noclass=1 : 네이버가 클래스명을 싹 바꾼 상황 재현 ── */
+(function () {
+  let q = ''; try { q = parent.location.search; } catch (e) {}
+  if (!/noclass/.test(q)) return;
+  [['se-image-toolbar-button', '사진'],
+   ['se-video-toolbar-button', '동영상'],
+   ['se-map-toolbar-button', '장소'],
+   ['se-insert-quotation-default-toolbar-button', '인용구'],
+   ['se-insert-horizontal-line-default-toolbar-button', '구분선'],
+   ['se-text-format-toolbar-button', '문단 서식'],
+   ['se-font-size-code-toolbar-button', '글자 크기']].forEach(function (pair) {
+    const el = document.querySelector('.' + pair[0]);
+    if (!el) return;
+    el.className = 'rnd_' + Math.random().toString(36).slice(2, 8);
+    el.setAttribute('aria-label', pair[1]);
+  });
+})();
+
+/* ── 저장 · 팝업 ──────────────────────────────── */
+document.getElementById('saveBtn').addEventListener('click', () => { window.__mock.saved++; });
+document.querySelector('.se-popup-button-cancel').addEventListener('click', () => {
+  document.getElementById('draftPopup').hidden = true;
+});
+document.querySelector('.se-help-panel-close-button').addEventListener('click', () => {
+  document.getElementById('helpPanel').hidden = true;
+});
+</script>
+</body></html>
