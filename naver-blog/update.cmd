@@ -18,6 +18,7 @@ xcopy /Y /E /I /Q "_tmp\naver-blog\.claude"  ".claude"  >nul
 xcopy /Y /E /I /Q "_tmp\naver-blog\tests"    "tests"    >nul
 xcopy /Y /Q "_tmp\naver-blog\CLAUDE.md"      "."        >nul
 xcopy /Y /Q "_tmp\naver-blog\README.md"      "."        >nul
+xcopy /Y /Q "_tmp\naver-blog\사용법.md"      "."        >nul
 xcopy /Y /Q "_tmp\naver-blog\package.json"   "."        >nul
 
 rem 초안 JSON 도 같이 받는다 (검증 산출물 .dump.txt / .png 는 건드리지 않는다)
